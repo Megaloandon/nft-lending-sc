@@ -1,4 +1,4 @@
-module lending_addr::nft_minter {
+module lending_addr::digital_asset_minter {
     use std::signer;
     use std::debug::print;
     use aptos_framework::object::{Self, Object, ExtendRef};
