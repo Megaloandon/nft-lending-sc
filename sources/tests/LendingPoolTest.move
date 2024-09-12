@@ -21,7 +21,7 @@ module lending_addr::lending_pool_test {
         apt_freeze: coin::FreezeCapability<FakeAPT>,
     }
 
-    public entry fun init_fake_pools(admin: &signer) {
+    public fun init_fake_pools(admin: &signer) {
         let name = string::utf8(b"Aptos Token");
         let symbol = string::utf8(b"APT");
         let (apt_burn, apt_freeze, apt_cap) = coin::initialize<FakeAPT>(admin, name, symbol, 6, false);
@@ -44,7 +44,7 @@ module lending_addr::lending_pool_test {
         coin::deposit(addr, apt);
     }
 
-    public entry fun create_fake_user(user: &signer) acquires FreeCoins {
+    public fun create_fake_user(user: &signer) acquires FreeCoins {
         init_coin_stores(user);
         let deposit_amount = 1000000000;
         lending_pool::deposit<FakeAPT>(user, deposit_amount);
@@ -60,7 +60,7 @@ module lending_addr::lending_pool_test {
         coin::register<MegaAPT>(user1);
         // admin add to pool
         init_fake_pools(admin);
-        lending_pool::admin_add_pool<FakeAPT>(admin);
+        lending_pool::admin_add_pool_for_test<FakeAPT>(admin);
         coin::register<FakeAPT>(admin);
         let free_coins = borrow_global_mut<FreeCoins>(admin_addr);
         let admin_deposit_amount: u256 = 1000000000000;
@@ -166,7 +166,6 @@ module lending_addr::lending_pool_test {
             string::utf8(b"AptosMonkeys"),
             string::utf8(b"Aptos Monkeys"),
             string::utf8(b"Test Uri"),
-            false,
         );
     }
 
@@ -194,7 +193,7 @@ module lending_addr::lending_pool_test {
         // assert!(current_owner == @lending_addr, ERR_TEST);
 
         let (borrow_amount, repaid_amount, total_collateral_amount, health_factor, available_to_borrow) = lending_pool::get_borrower_information(user1_addr);
-        assert!(total_collateral_amount == 3 * 349900, ERR_TEST);
+        assert!(total_collateral_amount == 3 * 3499000, ERR_TEST);
 
         // digital_asset::transfer_token(329, user1_addr);
         // let current_owner = digital_asset::get_owner_token(329);
@@ -207,19 +206,19 @@ module lending_addr::lending_pool_test {
         let user1_addr = signer::address_of(user1);
         test_deposit_collateral(admin, user1, aptos_framework);
         let (borrow_amount, repaid_amount, total_collateral_amount, health_factor, available_to_borrow) = lending_pool::get_borrower_information(user1_addr);
-        assert!(available_to_borrow == 629820, ERR_TEST);
+        assert!(available_to_borrow == 6298200, ERR_TEST);
         assert!(health_factor == 0, ERR_TEST);
 
         // borrow 5 APT
-        lending_pool::borrow<FakeAPT>(user1, 500000);
+        lending_pool::borrow<FakeAPT>(user1, 5000000);
         let (borrow_amount, repaid_amount, total_collateral_amount, health_factor, available_to_borrow) = lending_pool::get_borrower_information(user1_addr);
-        assert!(borrow_amount == 500000, ERR_TEST);
+        assert!(borrow_amount == 5000000, ERR_TEST);
         assert!(repaid_amount == 0, ERR_TEST);
-        assert!(total_collateral_amount == 3 * 349900, ERR_TEST);
+        assert!(total_collateral_amount == 3 * 3499000, ERR_TEST);
         assert!(health_factor == 1784490, ERR_TEST);
-        assert!(available_to_borrow == 129820, ERR_TEST);
+        assert!(available_to_borrow == 1298200, ERR_TEST);
         let user_balance = coin::balance<FakeAPT>(user1_addr);
-        assert!(user_balance == 500000, ERR_TEST);
+        assert!(user_balance == 5000000, ERR_TEST);
     }
 
      #[test(admin=@lending_addr, user1=@0x1001, aptos_framework = @aptos_framework)]
@@ -229,7 +228,7 @@ module lending_addr::lending_pool_test {
         test_borrow(admin, user1, aptos_framework);
         
         // after repay part of debt
-        lending_pool::repay<FakeAPT>(user1, 200000);
+        lending_pool::repay<FakeAPT>(user1, 2000000);
         let addr = digital_asset::get_owner_token(329);
         assert!(addr != user1_addr, ERR_TEST);
         let addr = digital_asset::get_owner_token(98);
@@ -237,16 +236,16 @@ module lending_addr::lending_pool_test {
         let addr = digital_asset::get_owner_token(174);
         assert!(addr != user1_addr, ERR_TEST);
         let (borrow_amount, repaid_amount, total_collateral_amount, health_factor, available_to_borrow) = lending_pool::get_borrower_information(user1_addr);
-        assert!(borrow_amount == 300000, ERR_TEST);
-        assert!(repaid_amount == 200000, ERR_TEST);
-        assert!(total_collateral_amount == 3 * 349900, ERR_TEST);
+        assert!(borrow_amount == 3000000, ERR_TEST);
+        assert!(repaid_amount == 2000000, ERR_TEST);
+        assert!(total_collateral_amount == 3 * 3499000, ERR_TEST);
         assert!(health_factor == 2974150, ERR_TEST);
-        assert!(available_to_borrow == 329820, ERR_TEST);
+        assert!(available_to_borrow == 3298200, ERR_TEST);
         let user1_balance = coin::balance<FakeAPT>(user1_addr);
-        assert!(user1_balance == 300000, ERR_TEST);
+        assert!(user1_balance == 3000000, ERR_TEST);
 
         // after repay all debt
-        lending_pool::repay<FakeAPT>(user1, 300000);
+        lending_pool::repay<FakeAPT>(user1, 3000000);
         let addr = digital_asset::get_owner_token(329);
         assert!(addr == user1_addr, ERR_TEST);
         let addr = digital_asset::get_owner_token(98);

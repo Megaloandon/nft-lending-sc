@@ -6,7 +6,7 @@ module lending_addr::lending_pool {
     use std::simple_map::{Self, SimpleMap};
     use aptos_framework::timestamp;
     use aptos_framework::coin::{Self, Coin};
-    use lending_addr::mega_coin::{Self, MegaAPT};
+    use lending_addr::mega_coin::{Self, MockAPT, MegaAPT};
     use lending_addr::digital_asset;
 
     const YEAR_TO_SECOND: u256 = 31536000;
@@ -66,17 +66,14 @@ module lending_addr::lending_pool {
         });
         mega_coin::initialize(sender);
         digital_asset::initialize(sender);
+        move_to<MarketReserve<MockAPT>>(sender, MarketReserve<MockAPT> {
+            reserve: coin::zero<MockAPT>(),
+        });
     }
 
     // ===================================================================================
     // ================================= Entry Function ==================================
     // ===================================================================================
-
-    public entry fun admin_add_pool<CoinType>(sender: &signer) {
-        move_to<MarketReserve<CoinType>>(sender, MarketReserve<CoinType> {
-            reserve: coin::zero<CoinType>(),
-        });
-    }
 
     public entry fun deposit<CoinType>(sender: &signer, amount: u256) acquires Market, MarketReserve {
         let sender_addr = signer::address_of(sender);
@@ -147,7 +144,7 @@ module lending_addr::lending_pool {
         let is_borrower_exist = vector::contains(borrower_list, &sender_addr);
         let nft = get_nft_configuration(token_id);
         let new_available_to_borrow = nft.floor_price * nft.ltv / BASE;
-        // get NFT from user wallet
+        // get NFT from user wallet and transfer debt NFT to user wallet
         digital_asset::withdraw_token(sender, token_id);
         
         // update borrower storage
@@ -186,10 +183,6 @@ module lending_addr::lending_pool {
             vector::push_back(borrower_list, sender_addr);
             simple_map::add(borrower_map, sender_addr, borrower);
         };
-
-        // mint megaloandon nft to user wallet
-        let (name, description, uri) = digital_asset::get_token_data(token_id);
-        digital_asset::mint_token(sender_addr, token_id, name, description, uri, true);
     }
 
     public entry fun borrow<CoinType>(sender: &signer, amount: u256) acquires Market, MarketReserve {
@@ -269,7 +262,8 @@ module lending_addr::lending_pool {
             let i = collateral_numbers - 1;
             while(i >= 0) {
                 let token_id = *vector::borrow(collateral_list, (i as u64));
-                digital_asset::transfer_token(token_id, sender_addr);
+                // transfer NFT to user wallet and get debt NFT form user wallet
+                digital_asset::transfer_token(sender, token_id);
                 vector::remove(collateral_list, (i as u64));
                 simple_map::remove(collateral_map, &token_id);
                 if(i == 0) {
@@ -304,7 +298,7 @@ module lending_addr::lending_pool {
 
     public fun get_nft_configuration(token_id: u64): NFT {
         let nft = NFT {
-            floor_price: 349900,
+            floor_price: 3499000,
             ltv: 600000,
             liquidation_threshold: 850000,
         };
@@ -371,6 +365,13 @@ module lending_addr::lending_pool {
     #[test_only]
     public fun init_module_for_tests(sender: &signer) {
         init_module(sender);
+    }
+
+    #[test_only]
+    public fun admin_add_pool_for_test<CoinType>(sender: &signer) {
+        move_to<MarketReserve<CoinType>>(sender, MarketReserve<CoinType> {
+            reserve: coin::zero<CoinType>(),
+        });
     }
 }
 

@@ -58,4 +58,14 @@ module lending_addr::mega_coin {
         coin::deposit<CoinType>(receiver, coin);
     }
 
+    public entry fun register(sender: &signer) {
+        if(coin::is_account_registered<MockAPT>(signer::address_of(sender)) == false) {
+            coin::register<MockAPT>(sender);
+        };
+
+        if(coin::is_account_registered<MegaAPT>(signer::address_of(sender)) == false) {
+            coin::register<MegaAPT>(sender);
+        };
+    }
+
 }
