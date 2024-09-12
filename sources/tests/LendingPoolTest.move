@@ -8,6 +8,7 @@ module lending_addr::lending_pool_test {
     use aptos_framework::account;
     use aptos_framework::timestamp;
     use lending_addr::mega_coin::{Self, MegaAPT};
+    use lending_addr::digital_asset;
 
     const ERR_TEST: u64 = 1000;
 
@@ -21,7 +22,6 @@ module lending_addr::lending_pool_test {
     }
 
     public entry fun init_fake_pools(admin: &signer) {
-        let admin_addr = signer::address_of(admin);
         let name = string::utf8(b"Aptos Token");
         let symbol = string::utf8(b"APT");
         let (apt_burn, apt_freeze, apt_cap) = coin::initialize<FakeAPT>(admin, name, symbol, 6, false);
@@ -47,7 +47,7 @@ module lending_addr::lending_pool_test {
     public entry fun create_fake_user(user: &signer) acquires FreeCoins {
         init_coin_stores(user);
         let deposit_amount = 1000000000;
-        lending_pool::deposit<FakeAPT>(user, 1000000000);
+        lending_pool::deposit<FakeAPT>(user, deposit_amount);
     }
     
     #[test_only]
@@ -109,12 +109,12 @@ module lending_addr::lending_pool_test {
         let i = 0;
         while (i < lender_numbers) {
             let lender_address = vector::borrow(&lender_list, (i as u64));
-            print(lender_address);
+            // print(lender_address);
             i = i + 1;
         };
 
-        let user1_deposit = lending_pool::get_deposit_amount_lender(user1_addr);
-        print(&user1_deposit);
+        let (user1_deposit, accumulated_amount) = lending_pool::get_lender_information(user1_addr);
+        // print(&user1_deposit);
         assert!(user1_deposit == 1000000000, ERR_TEST);
     }       
 
@@ -139,14 +139,128 @@ module lending_addr::lending_pool_test {
         let one_year_later = timestamp::now_seconds();
         assert!(one_year_later == 31536000, ERR_TEST);
 
-        let user1_deposit_amount = lending_pool::get_deposit_amount_lender(user1_addr);
+        // before withdraw
+        let (user1_deposit_amount, accumulated_amount) = lending_pool::get_lender_information(user1_addr);
         assert!(user1_deposit_amount == 1000000000, ERR_TEST);
+        assert!(accumulated_amount == 1000000000, ERR_TEST);
         let user1_balance = coin::balance<FakeAPT>(user1_addr);
         assert!(user1_balance == 0, ERR_TEST);
-        lending_pool::withdraw<FakeAPT>(user1, user1_deposit_amount);
+        let user1_mega_balance = coin::balance<MegaAPT>(user1_addr);
+        assert!(user1_mega_balance == 1000000000, ERR_TEST);
+        // after withdraw
+        lending_pool::withdraw<FakeAPT>(user1, accumulated_amount);
         let user1_balance = coin::balance<FakeAPT>(user1_addr);
-        assert!(user1_balance == 1058200000, ERR_TEST);
-        let user1_current_amount = lending_pool::get_deposit_amount_lender(user1_addr);
-        assert!(user1_current_amount == 0, ERR_TEST);
+        assert!(user1_balance == 1000000000, ERR_TEST);
+        let user1_mega_balance = coin::balance<MegaAPT>(user1_addr);
+        assert!(user1_mega_balance == 0, ERR_TEST);
+        let (user1_deposit_amount, accumulated_amount) = lending_pool::get_lender_information(user1_addr);
+        assert!(user1_deposit_amount == 0, ERR_TEST);
+        assert!(accumulated_amount == 0, ERR_TEST);
     }       
+
+    #[test_only]
+    public fun create_nft(owner_addr: address, token_id: u64) {
+        digital_asset::mint_token(
+            owner_addr,
+            token_id,
+            string::utf8(b"AptosMonkeys"),
+            string::utf8(b"Aptos Monkeys"),
+            string::utf8(b"Test Uri"),
+            false,
+        );
+    }
+
+    #[test(admin=@lending_addr, user1=@0x1001, aptos_framework = @aptos_framework)]
+    public fun test_deposit_collateral(admin: &signer, user1: &signer, aptos_framework: &signer) acquires FreeCoins {
+        let admin_addr = signer::address_of(admin);
+        let user1_addr = signer::address_of(user1);
+        set_up_test_for_time(aptos_framework);
+        
+        // admin deposits 1.000.000 * 10^6 
+        // user deposits 1.000 * 10^6
+        lending_pool::init_module_for_tests(admin);
+        test_init(admin, user1);
+
+        // create nft for user1 
+        create_nft(user1_addr, 329);
+        create_nft(user1_addr, 98);
+        create_nft(user1_addr, 174);
+
+        // deposit nft to lending pool
+        lending_pool::deposit_collateral(user1, 329);
+        lending_pool::deposit_collateral(user1, 98);
+        lending_pool::deposit_collateral(user1, 174);
+        // let current_owner = digital_asset::get_owner_token(329);
+        // assert!(current_owner == @lending_addr, ERR_TEST);
+
+        let (borrow_amount, repaid_amount, total_collateral_amount, health_factor, available_to_borrow) = lending_pool::get_borrower_information(user1_addr);
+        assert!(total_collateral_amount == 3 * 349900, ERR_TEST);
+
+        // digital_asset::transfer_token(329, user1_addr);
+        // let current_owner = digital_asset::get_owner_token(329);
+        // assert!(current_owner == user1_addr, ERR_TEST);
+    }
+
+    #[test(admin=@lending_addr, user1=@0x1001, aptos_framework = @aptos_framework)]
+    public fun test_borrow(admin: &signer, user1: &signer, aptos_framework: &signer) acquires FreeCoins {
+        let admin_addr = signer::address_of(admin);
+        let user1_addr = signer::address_of(user1);
+        test_deposit_collateral(admin, user1, aptos_framework);
+        let (borrow_amount, repaid_amount, total_collateral_amount, health_factor, available_to_borrow) = lending_pool::get_borrower_information(user1_addr);
+        assert!(available_to_borrow == 629820, ERR_TEST);
+        assert!(health_factor == 0, ERR_TEST);
+
+        // borrow 5 APT
+        lending_pool::borrow<FakeAPT>(user1, 500000);
+        let (borrow_amount, repaid_amount, total_collateral_amount, health_factor, available_to_borrow) = lending_pool::get_borrower_information(user1_addr);
+        assert!(borrow_amount == 500000, ERR_TEST);
+        assert!(repaid_amount == 0, ERR_TEST);
+        assert!(total_collateral_amount == 3 * 349900, ERR_TEST);
+        assert!(health_factor == 1784490, ERR_TEST);
+        assert!(available_to_borrow == 129820, ERR_TEST);
+        let user_balance = coin::balance<FakeAPT>(user1_addr);
+        assert!(user_balance == 500000, ERR_TEST);
+    }
+
+     #[test(admin=@lending_addr, user1=@0x1001, aptos_framework = @aptos_framework)]
+    public fun test_repay(admin: &signer, user1: &signer, aptos_framework: &signer) acquires FreeCoins {
+        let admin_addr = signer::address_of(admin);
+        let user1_addr = signer::address_of(user1);
+        test_borrow(admin, user1, aptos_framework);
+        
+        // after repay part of debt
+        lending_pool::repay<FakeAPT>(user1, 200000);
+        let addr = digital_asset::get_owner_token(329);
+        assert!(addr != user1_addr, ERR_TEST);
+        let addr = digital_asset::get_owner_token(98);
+        assert!(addr != user1_addr, ERR_TEST);
+        let addr = digital_asset::get_owner_token(174);
+        assert!(addr != user1_addr, ERR_TEST);
+        let (borrow_amount, repaid_amount, total_collateral_amount, health_factor, available_to_borrow) = lending_pool::get_borrower_information(user1_addr);
+        assert!(borrow_amount == 300000, ERR_TEST);
+        assert!(repaid_amount == 200000, ERR_TEST);
+        assert!(total_collateral_amount == 3 * 349900, ERR_TEST);
+        assert!(health_factor == 2974150, ERR_TEST);
+        assert!(available_to_borrow == 329820, ERR_TEST);
+        let user1_balance = coin::balance<FakeAPT>(user1_addr);
+        assert!(user1_balance == 300000, ERR_TEST);
+
+        // after repay all debt
+        lending_pool::repay<FakeAPT>(user1, 300000);
+        let addr = digital_asset::get_owner_token(329);
+        assert!(addr == user1_addr, ERR_TEST);
+        let addr = digital_asset::get_owner_token(98);
+        assert!(addr == user1_addr, ERR_TEST);
+        let addr = digital_asset::get_owner_token(174);
+        assert!(addr == user1_addr, ERR_TEST);
+        let (borrow_amount, repaid_amount, total_collateral_amount, health_factor, available_to_borrow) = lending_pool::get_borrower_information(user1_addr);
+        assert!(borrow_amount == 0, ERR_TEST);
+        assert!(repaid_amount == 0, ERR_TEST);
+        assert!(total_collateral_amount == 0, ERR_TEST);
+        assert!(health_factor == 0, ERR_TEST);
+        assert!(available_to_borrow == 0, ERR_TEST);
+        let user1_balance = coin::balance<FakeAPT>(user1_addr);
+        assert!(user1_balance == 0, ERR_TEST);
+    }
+
 }

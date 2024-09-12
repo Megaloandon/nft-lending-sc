@@ -2,7 +2,6 @@ module lending_addr::mega_coin {
     use std::debug::print;
     use std::signer;
     use std::string;
-    use aptos_framework::aptos_account;
     use aptos_framework::coin::{Coin, Self, MintCapability, BurnCapability};
 
     const BASE: u64 = 1000000;
@@ -49,14 +48,12 @@ module lending_addr::mega_coin {
     }
 
     public entry fun withdraw<CoinType>(sender: &signer, amount: u64) acquires CoinCapability {
-        let sender_addr = signer::address_of(sender);
         let coin = coin::withdraw<CoinType>(sender, amount);
         let coin_reserve = &mut borrow_global_mut<CoinCapability<CoinType>>(@lending_addr).coin;
         coin::merge(coin_reserve, coin);
     }
 
     public entry fun transfer<CoinType>(sender: &signer, receiver: address, amount: u64) {
-        let sender_addr = signer::address_of(sender);
         let coin = coin::withdraw<CoinType>(sender, amount);
         coin::deposit<CoinType>(receiver, coin);
     }

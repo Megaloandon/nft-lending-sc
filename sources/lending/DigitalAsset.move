@@ -7,11 +7,16 @@ module lending_addr::digital_asset {
     use aptos_std::string_utils;
     use std::simple_map::{Self, SimpleMap};
 
-    const COLLECTION_NAME: vector<u8> = b"Aptos Monkeys";
+    const APTOS_MONKEY_COLLECTION_NAME: vector<u8> = b"Aptos Monkeys";
+    const MEGALOANDON_COLLECTION_NAME: vector<u8> = b"Megaloandon";
     const COLLECTION_URI: vector<u8> = b"https://ipfs.bluemove.net/uploads/aptos-monkeys.png";
-    const COLLECTION_DESCRIPTION: vector<u8> = b"A group of skilled monkeys working together to build a civilized jungle. Each monkey has its unique intelligence to create long-lasting products to foster productivity and effectiveness in the Aptos ecosystem.";
+    const APTOS_MONKEY_COLLECTION_DESCRIPTION: vector<u8> = b"A group of skilled monkeys working together to build a civilized jungle. Each monkey has its unique intelligence to create long-lasting products to foster productivity and effectiveness in the Aptos ecosystem.";
+    const MEGALOANDON_COLLECTION_DESCRIPTION: vector<u8> = b"Megaloandon collections represent for debt of borrower";
+
+    const ERR_TEST: u64 = 1000;
 
     friend lending_addr::lending_pool;
+    friend lending_addr::lending_pool_test;
 
     struct NFTCollectionCreator has key {
         extend_ref: ExtendRef
@@ -28,7 +33,7 @@ module lending_addr::digital_asset {
         nft_record: SimpleMap<u64, NFT>,
     }
 
-    fun init_module(sender: &signer) {
+    public fun initialize(sender: &signer) {
         let creator_constructor_ref = &object::create_object(@lending_addr);
         let extend_ref = object::generate_extend_ref(creator_constructor_ref);
         move_to(sender, NFTCollectionCreator { 
@@ -44,9 +49,27 @@ module lending_addr::digital_asset {
         
         aptos_token::create_collection(
             creator_signer,
-            string::utf8(COLLECTION_DESCRIPTION),
+            string::utf8(APTOS_MONKEY_COLLECTION_DESCRIPTION),
             max_supply,
-            string::utf8(COLLECTION_NAME),
+            string::utf8(APTOS_MONKEY_COLLECTION_NAME),
+            string::utf8(COLLECTION_URI),
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            0, 100,
+        );
+
+        aptos_token::create_collection(
+            creator_signer,
+            string::utf8(MEGALOANDON_COLLECTION_DESCRIPTION),
+            max_supply,
+            string::utf8(MEGALOANDON_COLLECTION_NAME),
             string::utf8(COLLECTION_URI),
             true,
             true,
@@ -66,7 +89,8 @@ module lending_addr::digital_asset {
         token_id: u64,
         name: String,
         description: String, 
-        uri: String
+        uri: String,
+        is_debt_nft: bool,
     ) acquires NFTCollectionCreator, NFTManager {
         let creator_extend_ref = &borrow_global<NFTCollectionCreator>(@lending_addr).extend_ref;
         let nft_manager = borrow_global_mut<NFTManager>(@lending_addr);
@@ -77,9 +101,13 @@ module lending_addr::digital_asset {
             &mut name,
             string_utils::to_string(&token_id)
         );
+        let collection_name = APTOS_MONKEY_COLLECTION_NAME;
+        if(is_debt_nft) {
+            collection_name = MEGALOANDON_COLLECTION_NAME;
+        };
         let token = aptos_token::mint_token_object(
             creator,
-            string::utf8(COLLECTION_NAME),
+            string::utf8(collection_name),
             description,
             name,
             uri,
@@ -88,21 +116,31 @@ module lending_addr::digital_asset {
             vector[],
         );
         object::transfer(creator, token, owner);
-        let token_addr = object::object_address(&token);
-        simple_map::add(&mut nft_manager.address_record, token_id, token_addr);
-
-        let nft = NFT {
-            name: name,
-            description: description,
-            uri: uri,
-        };
-        simple_map::add(&mut nft_manager.nft_record, token_id, nft);
-
+        if(!is_debt_nft) {
+            let token_addr = object::object_address(&token);
+            simple_map::add(&mut nft_manager.address_record, token_id, token_addr);
+            let nft = NFT {
+                name: name,
+                description: description,
+                uri: uri,
+            };
+            simple_map::add(&mut nft_manager.nft_record, token_id, nft);
+        }        
     }
 
-    public entry fun transfer_token(owner: &signer, token_id: u64, receiver: address) acquires NFTManager {
+    public entry fun withdraw_token(owner: &signer, token_id: u64) acquires NFTCollectionCreator, NFTManager {
         let token = get_token(token_id);
+        let creator_extend_ref = &borrow_global<NFTCollectionCreator>(@lending_addr).extend_ref;
+        let creator = &object::generate_signer_for_extending(creator_extend_ref);
+        let receiver = signer::address_of(creator);
         object::transfer(owner, token, receiver);
+    }
+
+    public entry fun transfer_token(token_id: u64, receiver: address) acquires NFTCollectionCreator, NFTManager {
+        let token = get_token(token_id);
+        let creator_extend_ref = &borrow_global<NFTCollectionCreator>(@lending_addr).extend_ref;
+        let creator = &object::generate_signer_for_extending(creator_extend_ref);
+        object::transfer(creator, token, receiver);
     }
 
     public entry fun delete_token(token_id: u64) acquires NFTCollectionCreator, NFTManager {
@@ -141,13 +179,16 @@ module lending_addr::digital_asset {
 
     #[test(sender = @lending_addr, user1 = @0x123, user2 = @0x1234)]
     fun test_create_transfer_token(sender: &signer, user1: &signer, user2: &signer) acquires NFTCollectionCreator, NFTManager {
-        init_module(sender);
+        let sender_addr = signer::address_of(sender);
+        let user1_addr = signer::address_of(user1);
+        initialize(sender);
         mint_token(
             signer::address_of(sender), 
             329,
             string::utf8(b"Name"),
             string::utf8(b"Description"),
             string::utf8(b"Uri"),
+            false,
         );
         let token_addr = get_address_token(329);
         // print(&token_addr);
@@ -158,15 +199,16 @@ module lending_addr::digital_asset {
             string::utf8(b"Name"),
             string::utf8(b"Description"),
             string::utf8(b"Uri"),
+            false,
         );
         let token_addr_1 = get_address_token(1214);
         // print(&token_addr_1);
 
         let token = get_token(329);
-        transfer_token(sender, 329, signer::address_of(user1));
-        transfer_token(user1, 329, signer::address_of(user2));
+        withdraw_token(sender, 329);
+        transfer_token(329, user1_addr);
         let owner_addr = get_owner_token(329);
-        // print(&owner_addr);
+        assert!(owner_addr == user1_addr, ERR_TEST);
         delete_token(329);
 
         let (name, description, uri) = get_token_data(329);
