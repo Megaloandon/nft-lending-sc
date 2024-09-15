@@ -138,27 +138,33 @@ module lending_addr::digital_asset {
         simple_map::add(&mut nft_manager.nft_record, token_id, nft);    
     }
 
-    // get NFT from user wallet and transfer debt NFT to user wallet
     public entry fun withdraw_token(owner: &signer, token_id: u64) acquires NFTCollectionCreator, NFTManager {
         let token = get_token(token_id);
         let creator_extend_ref = &borrow_global<NFTCollectionCreator>(@lending_addr).extend_ref;
         let creator = &object::generate_signer_for_extending(creator_extend_ref);
         let receiver = signer::address_of(creator);
         object::transfer(owner, token, receiver);
+    }
 
+    public entry fun transfer_debt_token(owner: &signer, token_id: u64) acquires NFTCollectionCreator, NFTManager {
+        let creator_extend_ref = &borrow_global<NFTCollectionCreator>(@lending_addr).extend_ref;
+        let creator = &object::generate_signer_for_extending(creator_extend_ref);
         let debt_token = get_debt_token(token_id);
         object::transfer(creator, debt_token, signer::address_of(owner));
     }
 
-    // repay NFT to user wallet and get debt NFT
+    public entry fun withdraw_debt_token(owner: &signer, token_id: u64) acquires NFTCollectionCreator, NFTManager {
+        let creator_extend_ref = &borrow_global<NFTCollectionCreator>(@lending_addr).extend_ref;
+        let creator = &object::generate_signer_for_extending(creator_extend_ref);
+        let debt_token = get_debt_token(token_id);
+        object::transfer(owner, debt_token, signer::address_of(creator));
+    }
+
     public entry fun transfer_token(owner: &signer, token_id: u64) acquires NFTCollectionCreator, NFTManager {
         let token = get_token(token_id);
         let creator_extend_ref = &borrow_global<NFTCollectionCreator>(@lending_addr).extend_ref;
         let creator = &object::generate_signer_for_extending(creator_extend_ref);
         object::transfer(creator, token, signer::address_of(owner));
-
-        let debt_token = get_debt_token(token_id);
-        object::transfer(owner, debt_token, signer::address_of(creator));
     }
 
     public entry fun delete_token(token_id: u64) acquires NFTCollectionCreator, NFTManager {
