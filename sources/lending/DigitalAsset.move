@@ -17,6 +17,7 @@ module lending_addr::digital_asset {
 
     friend lending_addr::lending_pool;
     friend lending_addr::lending_pool_test;
+    friend lending_addr::exchange;
 
     struct NFTCollectionCreator has key {
         extend_ref: ExtendRef

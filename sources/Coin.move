@@ -9,6 +9,7 @@ module lending_addr::mega_coin {
 
     friend lending_addr::lending_pool;
     friend lending_addr::lending_pool_test;
+    friend lending_addr::exchange;
 
     struct MegaAPT {}
     
@@ -40,8 +41,7 @@ module lending_addr::mega_coin {
         coin::destroy_freeze_cap<MegaAPT>(mega_apt_freeze);
     }
 
-    public entry fun mint<CoinType>(sender: &signer, amount: u64) acquires CoinCapability {
-        let sender_addr = signer::address_of(sender);
+    public entry fun mint<CoinType>(sender_addr: address, amount: u64) acquires CoinCapability {
         let coin_cap = borrow_global_mut<CoinCapability<CoinType>>(@lending_addr);
         let coin = coin::extract(&mut coin_cap.coin, amount);
         coin::deposit<CoinType>(sender_addr, coin);

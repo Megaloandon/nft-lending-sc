@@ -8,10 +8,13 @@ module lending_addr::lending_pool {
     use aptos_framework::coin::{Self, Coin};
     use lending_addr::mega_coin::{Self, MockAPT, MegaAPT};
     use lending_addr::digital_asset;
+    use lending_addr::mock_oracle;
 
     const YEAR_TO_SECOND: u256 = 31536000;
     const BASE: u256 = 1000000;
     const ERR_INSUCCIENTFUL: u64 = 1000;
+
+    friend lending_addr::exchange;
 
     struct MarketReserve<phantom CoinType> has key {
         reserve: Coin<CoinType>
@@ -106,7 +109,7 @@ module lending_addr::lending_pool {
         };
 
         // mint mAPT for user 
-        mega_coin::mint<MegaAPT>(sender, (amount as u64));
+        mega_coin::mint<MegaAPT>(sender_addr, (amount as u64));
     }
 
     public entry fun withdraw<CoinType>(sender: &signer, amount: u256) acquires Market, MarketReserve {
@@ -299,8 +302,9 @@ module lending_addr::lending_pool {
     // ===================================================================================
 
     public fun get_nft_configuration(token_id: u64): NFT {
+        let floor_price = mock_oracle::get_floor_price(token_id);
         let nft = NFT {
-            floor_price: 3499000,
+            floor_price: floor_price,
             ltv: 600000,
             liquidation_threshold: 850000,
         };
