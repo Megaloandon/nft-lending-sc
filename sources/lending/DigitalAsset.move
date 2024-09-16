@@ -147,11 +147,11 @@ module lending_addr::digital_asset {
         object::transfer(owner, token, receiver);
     }
 
-    public entry fun transfer_debt_token(owner: &signer, token_id: u64) acquires NFTCollectionCreator, NFTManager {
+    public entry fun transfer_debt_token(owner_addr: address, token_id: u64) acquires NFTCollectionCreator, NFTManager {
         let creator_extend_ref = &borrow_global<NFTCollectionCreator>(@lending_addr).extend_ref;
         let creator = &object::generate_signer_for_extending(creator_extend_ref);
         let debt_token = get_debt_token(token_id);
-        object::transfer(creator, debt_token, signer::address_of(owner));
+        object::transfer(creator, debt_token, owner_addr);
     }
 
     public entry fun withdraw_debt_token(owner: &signer, token_id: u64) acquires NFTCollectionCreator, NFTManager {
@@ -161,11 +161,11 @@ module lending_addr::digital_asset {
         object::transfer(owner, debt_token, signer::address_of(creator));
     }
 
-    public entry fun transfer_token(owner: &signer, token_id: u64) acquires NFTCollectionCreator, NFTManager {
+    public entry fun transfer_token(owner_addr: address, token_id: u64) acquires NFTCollectionCreator, NFTManager {
         let token = get_token(token_id);
         let creator_extend_ref = &borrow_global<NFTCollectionCreator>(@lending_addr).extend_ref;
         let creator = &object::generate_signer_for_extending(creator_extend_ref);
-        object::transfer(creator, token, signer::address_of(owner));
+        object::transfer(creator, token, owner_addr);
     }
 
     public entry fun delete_token(token_id: u64) acquires NFTCollectionCreator, NFTManager {
@@ -249,7 +249,7 @@ module lending_addr::digital_asset {
         
 
         withdraw_token(sender, 329);
-        transfer_token(sender, 329);
+        transfer_token(sender_addr, 329);
         // let owner_addr = get_owner_token(329);
         // assert!(owner_addr == user1_addr, ERR_TEST);
         delete_token(329);

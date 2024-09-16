@@ -58,26 +58,29 @@ module lending_addr::exchange_test {
     }
 
     #[test_only]
-    fun test_init(admin: &signer, user1: &signer, user2: &signer) acquires FreeCoins {
+    fun test_init(admin: &signer, user1: &signer, user2: &signer, user3: &signer) acquires FreeCoins {
         let admin_addr = signer::address_of(admin);
         let user1_addr = signer::address_of(user1);
         let user2_addr = signer::address_of(user2);
+        let user3_addr = signer::address_of(user3);
         account::create_account_for_test(admin_addr);
         account::create_account_for_test(user1_addr);
         account::create_account_for_test(user2_addr);
+        account::create_account_for_test(user3_addr);
         coin::register<MegaAPT>(admin);
         coin::register<MegaAPT>(user1);
         // admin add to pool
         init_fake_pools(admin);
-        lending_pool::admin_add_pool_for_test<FakeAPT>(admin);
+        exchange::admin_add_pool_for_test<FakeAPT>(admin);
         coin::register<FakeAPT>(admin);
         let free_coins = borrow_global_mut<FreeCoins>(admin_addr);
         let admin_deposit_amount: u256 = 1000000000000;
         let apt = coin::extract(&mut free_coins.apt_coin, (admin_deposit_amount as u64));
         coin::deposit<FakeAPT>(admin_addr, apt);
-        lending_pool::deposit<FakeAPT>(admin, admin_deposit_amount);
 
+        create_fake_user(user1);
         create_fake_user(user2);
+        create_fake_user(user3);
     }
     
     #[test_only]
@@ -91,16 +94,23 @@ module lending_addr::exchange_test {
         );
     }
 
-    #[test(admin = @lending_addr, user1 = @0x1001, user2 = @0x1002, aptos_framework = @aptos_framework)]
-    public fun test_offer_nft(admin: &signer, user1: &signer, user2: &signer, aptos_framework: &signer) acquires FreeCoins {
+    #[test(admin = @lending_addr, user1 = @0x1001, user2 = @0x1002, user3 = @0x1003, aptos_framework = @aptos_framework)]
+    public fun test_offer_nft(
+        admin: &signer, 
+        user1: &signer, 
+        user2: &signer, 
+        user3: &signer,
+        aptos_framework: &signer
+    ) acquires FreeCoins {
         let admin_addr = signer::address_of(admin);
         let user1_addr = signer::address_of(user1);
         let user2_addr = signer::address_of(user2);
+        let user3_addr = signer::address_of(user3);
         // set up test
         set_up_test_for_time(aptos_framework);
         lending_pool::init_module_for_tests(admin);
         exchange::init_module_for_tests(admin);
-        test_init(admin, user1, user2);
+        test_init(admin, user1, user2, user3);
 
         // mint nft for user1
         create_nft(user1_addr, 329);
@@ -124,7 +134,7 @@ module lending_addr::exchange_test {
         let owner_token_id_2 = digital_asset::get_owner_token(98);
         assert!(owner_token_id_2 != user1_addr, ERR_TEST);
         // cancle list offer NFT 98
-        exchange::cancle_list_offer_nft(user1, 98);
+        exchange::cancle_list_offer_nft(user1_addr, 98);
         let offer_nft_list = exchange::get_all_offer_nft();
         let numbers = vector::length(&offer_nft_list);
         assert!(numbers == 2, ERR_TEST);
@@ -132,10 +142,31 @@ module lending_addr::exchange_test {
         assert!(owner_token_id_2 == user1_addr, ERR_TEST);
 
         // user2 make offer
-        exchange::add_offer(user2_addr, 329, 5120000, 0);
+        let user2_balance = coin::balance<FakeAPT>(user2_addr);
+        assert!(user2_balance == 1000000000, ERR_TEST);
+        exchange::add_offer<FakeAPT>(user2, 329, 5120000, 0);
+        let user2_balance = coin::balance<FakeAPT>(user2_addr);
+        assert!(user2_balance == 1000000000 - 5120000, ERR_TEST);
 
-        // user2 cancle offer
-        exchange::remove_offer(user2_addr, 329);
+        // user3 make offer
+        exchange::add_offer<FakeAPT>(user3, 329, 5310000, 0);
+
+        let number_offers = exchange::get_number_offers(329);
+        assert!(number_offers == 2, ERR_TEST);
+        let (user_offer_address, offer_price, offer_time) = exchange::get_offer(329, 1);
+        assert!(user_offer_address == user3_addr, ERR_TEST);
+        assert!(offer_price == 5310000, ERR_TEST);
+
+        // user3 cancel offer
+        exchange::remove_offer<FakeAPT>(user3_addr, 329);
+        let number_offers = exchange::get_number_offers(329);
+        assert!(number_offers == 1, ERR_TEST);
+        let (user_offer_address, offer_price, offer_time) = exchange::get_offer(329, 0);
+        assert!(user_offer_address == user2_addr, ERR_TEST);
+        assert!(offer_price == 5120000, ERR_TEST);
+        
+        // seller sell for offer's user2
+        exchange::sell_offer_nft<FakeAPT>(user2_addr, 329);
     }
     
 }

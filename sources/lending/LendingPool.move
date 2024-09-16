@@ -149,7 +149,7 @@ module lending_addr::lending_pool {
         let new_available_to_borrow = nft.floor_price * nft.ltv / BASE;
         // get NFT from user wallet and transfer debt NFT to user wallet
         digital_asset::withdraw_token(sender, token_id);
-        digital_asset::transfer_debt_token(sender, token_id);
+        digital_asset::transfer_debt_token(sender_addr, token_id);
         
         // update borrower storage
         if(is_borrower_exist) {
@@ -267,7 +267,7 @@ module lending_addr::lending_pool {
             while(i >= 0) {
                 let token_id = *vector::borrow(collateral_list, (i as u64));
                 // transfer NFT to user wallet and get debt NFT form user wallet
-                digital_asset::transfer_token(sender, token_id);
+                digital_asset::transfer_token(sender_addr, token_id);
                 digital_asset::withdraw_debt_token(sender, token_id);
                 vector::remove(collateral_list, (i as u64));
                 simple_map::remove(collateral_map, &token_id);
