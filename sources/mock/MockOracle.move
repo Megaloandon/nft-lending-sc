@@ -3,12 +3,12 @@ module lending_addr::mock_oracle {
     friend lending_addr::exchange;
 
     public fun get_floor_price(token_id: u64): u256 {
-        let price = 3499000;
+        let price = 2100000;
         price
     }
 
     public fun get_full_payment_price(token_id: u64): u256 {
-        let price = 21800000;
+        let price = 3499000;
         price
     }
 

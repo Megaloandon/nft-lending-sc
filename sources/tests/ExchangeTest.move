@@ -10,6 +10,7 @@ module lending_addr::exchange_test {
     use aptos_framework::account;
     use aptos_framework::timestamp;
     use lending_addr::lending_pool;
+    use lending_addr::mock_flash_loan;
 
     const ERR_TEST: u64 = 1000;
 
@@ -27,7 +28,7 @@ module lending_addr::exchange_test {
         let symbol = string::utf8(b"APT");
         let (apt_burn, apt_freeze, apt_cap) = coin::initialize<FakeAPT>(admin, name, symbol, 6, false);
 
-        let mint_amount = 2000000000000;
+        let mint_amount = 9000000000000;
         move_to(admin, FreeCoins {
             apt_coin: coin::mint<FakeAPT>(mint_amount, &apt_cap),
             apt_cap,
@@ -73,13 +74,14 @@ module lending_addr::exchange_test {
         init_fake_pools(admin);
         lending_pool::admin_add_pool_for_test<FakeAPT>(admin);
         exchange::admin_add_pool_for_test<FakeAPT>(admin);
+        mock_flash_loan::admin_add_pool_for_test<FakeAPT>(admin);
         coin::register<FakeAPT>(admin);
         let free_coins = borrow_global_mut<FreeCoins>(admin_addr);
         let admin_deposit_amount: u256 = 1000000000000;
-        let apt = coin::extract(&mut free_coins.apt_coin, (admin_deposit_amount as u64));
+        let apt = coin::extract(&mut free_coins.apt_coin, (2 * admin_deposit_amount as u64));
         coin::deposit<FakeAPT>(admin_addr, apt);
         lending_pool::deposit<FakeAPT>(admin, admin_deposit_amount);
-
+        mock_flash_loan::deposit<FakeAPT>(admin, admin_deposit_amount);
 
         create_fake_user(user1);
         create_fake_user(user2);
@@ -220,6 +222,42 @@ module lending_addr::exchange_test {
         assert!(owner_token == user3_addr, ERR_TEST);
         let user1_balance = coin::balance<FakeAPT>(user1_addr);
         assert!(user1_balance == 1003499000, ERR_TEST);
+    }
+    
+    #[test(admin = @lending_addr, user1 = @0x1001, user2 = @0x1002, user3 = @0x1003, aptos_framework = @aptos_framework)]
+    public fun test_buy_with_down_payment (
+        admin: &signer, 
+        user1: &signer, 
+        user2: &signer, 
+        user3: &signer,
+        aptos_framework: &signer
+    ) acquires FreeCoins {
+        let admin_addr = signer::address_of(admin);
+        let user1_addr = signer::address_of(user1);
+        let user2_addr = signer::address_of(user2);
+        let user3_addr = signer::address_of(user3);
+        // set up test
+        set_up_test_for_time(aptos_framework);
+        lending_pool::init_module_for_tests(admin);
+        exchange::init_module_for_tests(admin);
+        test_init(admin, user1, user2, user3);
+
+        // mint nft for user1
+        create_nft(user1_addr, 329);
+        create_nft(user1_addr, 98);
+        create_nft(user2_addr, 174);
+
+        // user1 and user2 collatearal listing
+        exchange::list_instantly_nft<FakeAPT>(user1, 329);
+        exchange::list_instantly_nft<FakeAPT>(user2, 174);
+
+        let user3_balance = coin::balance<FakeAPT>(user3_addr);
+        assert!(user3_balance == 1000000000, ERR_TEST);
+        exchange::buy_with_down_payment<FakeAPT>(user3, 329);
+        let user3_balance = coin::balance<FakeAPT>(user3_addr);
+        assert!(user3_balance == (1000000000 - 3499000 * 40 / 100), ERR_TEST);
+        let owner_token = digital_asset::get_owner_token(329);
+        assert!(owner_token != user3_addr, ERR_TEST);
     }
     
 }

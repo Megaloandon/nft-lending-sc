@@ -19,14 +19,26 @@ module lending_addr::exchange {
         reserve: Coin<CoinType>
     }
 
+
+    // creator represent for seller to borrow instantly 60% of each NFT
     struct ExchangeCreators has key {
         extend_ref_list: SimpleMap<u64, ExtendRef>,
+    }
+
+    // creator represent for buyer to make flash loan with Aries 
+    struct FlashLoanCreators has key {
+extend_ref_list: SimpleMap<u64, ExtendRef>,
     }
 
     fun init_module(sender: &signer) {
         move_to(sender, ExchangeCreators { 
             extend_ref_list: simple_map::create(),
         });
+
+        move_to(sender, FlashLoanCreators {
+            extend_ref_list: simple_map::create(),
+        });
+
         move_to<MarketReserve<MockAPT>>(sender, MarketReserve<MockAPT> {
             reserve: coin::zero<MockAPT>(),
         });
@@ -56,7 +68,7 @@ module lending_addr::exchange {
         account::create_account_if_does_not_exist(signer::address_of(creator));
         coin::register<CoinType>(creator);
         
-        let nft_price = mock_oracle::get_floor_price(token_id);
+        let nft_price = mock_oracle::get_full_payment_price(token_id);
         let instantly_amount = nft_price * 60 / 100;
 
         // withdraw token from user wallet and deposit to creator of this contract, then creator will be borrower of lending pool
@@ -97,10 +109,10 @@ module lending_addr::exchange {
     }
 
     public entry fun sell_instantly_nft<CoinType>(sender: &signer, token_id: u64) acquires MarketReserve, ExchangeCreators {
-        let extend_ref_list = &borrow_global<ExchangeCreators>(@lending_addr).extend_ref_list;
+        let extend_ref_list = &mut borrow_global_mut<ExchangeCreators>(@lending_addr).extend_ref_list;
         let creator_extend_ref = simple_map::borrow<u64, ExtendRef>(extend_ref_list, &token_id);
         let creator = &object::generate_signer_for_extending(creator_extend_ref);
-        let nft_price = mock_oracle::get_floor_price(token_id);
+        let nft_price = mock_oracle::get_full_payment_price(token_id);
 
         // 60% used to repay debt of lending protocol
         let amount_to_repay = nft_price * 60 / 100;
@@ -123,16 +135,36 @@ module lending_addr::exchange {
         let nft_owner_addr = storage::get_nft_owner_addr(token_id);
         coin::deposit(nft_owner_addr, coin); 
         storage::remove_instantly_nft(token_id);
+        // remove creator of this NFT
+        simple_map::remove(extend_ref_list, &token_id);
     }
 
-    public fun flash_loan<CoinType>(sender: &signer, amount: u256) {
-        mock_flash_loan::flash_loan<CoinType>(sender, amount);
-        excute_operation();
-        mock_flash_loan::repay_flash_loan<CoinType>(sender);
-    }
+    public entry fun buy_with_down_payment<CoinType>(sender: &signer, token_id: u64) acquires  MarketReserve, ExchangeCreators {
+        // create creator has a role reprensentative for BUYER to make flash loan and borrow 60% full paymment price of NFT
+        let creator_constructor_ref = &object::create_object(@lending_addr);
+        let creator_extend_ref = object::generate_extend_ref(creator_constructor_ref);
+        let creator = &object::generate_signer_for_extending(&creator_extend_ref);
+        account::create_account_if_does_not_exist(signer::address_of(creator));
+        coin::register<CoinType>(creator);
 
-    public fun excute_operation() {
-        
+        let full_payment_price = mock_oracle::get_full_payment_price(token_id);
+        let pre_payment = full_payment_price * 40 / 100;
+        let coin = coin::withdraw<CoinType>(sender, (pre_payment as u64));
+        coin::deposit<CoinType>(signer::address_of(creator), coin);
+        // make flash loan and repay flash loan in one transaction
+        let remaining_payment = full_payment_price - pre_payment;
+        mock_flash_loan::flash_loan<CoinType>(creator, remaining_payment);
+        // buy instantly nft which listed 
+        sell_instantly_nft<CoinType>(creator, token_id);
+        // deposit NFT to owner who is represented for the Loan
+        digital_asset::withdraw_token(creator, token_id);
+        digital_asset::transfer_token(signer::address_of(sender), token_id);
+        // list to exchange and instantly received 60% to repay flash loan
+        list_instantly_nft<CoinType>(sender, token_id);
+        let coin = coin::withdraw<CoinType>(sender, (remaining_payment as u64));
+        coin::deposit<CoinType>(signer::address_of(creator), coin);
+        mock_flash_loan::repay_flash_loan<CoinType>(creator);
+        // right now buyer is the lender of lending protocol
     }
 
     //===========================================================================
@@ -177,6 +209,7 @@ module lending_addr::exchange {
     public fun init_module_for_tests(sender: &signer) {
         init_module(sender);
         storage::init_module_for_tests(sender);
+        mock_flash_loan::init_module_for_tests(sender);
     }
 
     #[test_only]

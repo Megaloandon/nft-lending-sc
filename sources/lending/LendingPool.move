@@ -40,7 +40,7 @@ module lending_addr::lending_pool {
 
     // store information of each NFT
     struct NFT has key, store, copy, drop {
-        floor_price: u256,
+        price: u256,
         ltv: u256,
         liquidation_threshold: u256,
     }
@@ -146,7 +146,7 @@ module lending_addr::lending_pool {
         let borrower_numbers = vector::length(borrower_list);
         let is_borrower_exist = vector::contains(borrower_list, &sender_addr);
         let nft = get_nft_configuration(token_id);
-        let new_available_to_borrow = nft.floor_price * nft.ltv / BASE;
+        let new_available_to_borrow = nft.price * nft.ltv / BASE;
         // get NFT from user wallet and transfer debt NFT to user wallet
         digital_asset::withdraw_token(sender, token_id);
         digital_asset::transfer_debt_token(sender_addr, token_id);
@@ -154,11 +154,11 @@ module lending_addr::lending_pool {
         // update borrower storage
         if(is_borrower_exist) {
             let borrower = simple_map::borrow_mut<address, Borrower>(borrower_map, &sender_addr);
-            borrower.total_collateral_amount = borrower.total_collateral_amount + nft.floor_price;
+            borrower.total_collateral_amount = borrower.total_collateral_amount + nft.price;
             borrower.lasted_update_time = timestamp::now_seconds();
             let new_health_factor = 0;
             if (borrower.borrow_amount != 0) {
-                new_health_factor = nft.floor_price * nft.liquidation_threshold / borrower.borrow_amount;
+                new_health_factor = nft.price * nft.liquidation_threshold / borrower.borrow_amount;
             };
             borrower.health_factor = borrower.health_factor + new_health_factor;
             borrower.available_to_borrow = borrower.available_to_borrow + new_available_to_borrow;
@@ -170,7 +170,7 @@ module lending_addr::lending_pool {
             
         } else {
             let new_collateral_map: SimpleMap<u64, NFT> = simple_map::create();
-            let collateral_amount = nft.floor_price;
+            let collateral_amount = nft.price;
             simple_map::add(&mut new_collateral_map, token_id, nft);
             let new_collateral_list: vector<u64> = vector::empty();
             vector::push_back(&mut new_collateral_list, token_id);
@@ -216,7 +216,7 @@ module lending_addr::lending_pool {
         while (i < collateral_numbers) {
             let token_id = vector::borrow(collateral_list, (i as u64));
             let nft = simple_map::borrow<u64, NFT>(collateral_map, token_id);
-            hf_without_debt = hf_without_debt + nft.floor_price * nft.liquidation_threshold;
+            hf_without_debt = hf_without_debt + nft.price * nft.liquidation_threshold;
             i = i + 1;
         };
         let health_factor = hf_without_debt / borrower.borrow_amount;
@@ -252,7 +252,7 @@ module lending_addr::lending_pool {
         while (i < collateral_numbers) {
             let token_id = vector::borrow(collateral_list, (i as u64));
             let nft = simple_map::borrow<u64, NFT>(collateral_map, token_id);
-            hf_without_debt = hf_without_debt + nft.floor_price * nft.liquidation_threshold;
+            hf_without_debt = hf_without_debt + nft.price * nft.liquidation_threshold;
             i = i + 1;
         };
         if(borrower.borrow_amount != 0) {
@@ -305,9 +305,9 @@ module lending_addr::lending_pool {
     // ===================================================================================
 
     public fun get_nft_configuration(token_id: u64): NFT {
-        let floor_price = mock_oracle::get_floor_price(token_id);
+        let price = mock_oracle::get_full_payment_price(token_id);
         let nft = NFT {
-            floor_price: floor_price,
+            price: price,
             ltv: 600000,
             liquidation_threshold: 850000,
         };
