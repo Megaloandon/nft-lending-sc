@@ -6,6 +6,7 @@ module lending_addr::exchange {
     use lending_addr::digital_asset;
     use lending_addr::mock_oracle;
     use lending_addr::lending_pool;
+    use lending_addr::mock_flash_loan;
     use std::simple_map::{Self, SimpleMap};
     use lending_addr::mega_coin::{Self, MockAPT};
     use aptos_framework::coin::{Self, Coin};
@@ -122,6 +123,16 @@ module lending_addr::exchange {
         let nft_owner_addr = storage::get_nft_owner_addr(token_id);
         coin::deposit(nft_owner_addr, coin); 
         storage::remove_instantly_nft(token_id);
+    }
+
+    public fun flash_loan<CoinType>(sender: &signer, amount: u256) {
+        mock_flash_loan::flash_loan<CoinType>(sender, amount);
+        excute_operation();
+        mock_flash_loan::repay_flash_loan<CoinType>(sender);
+    }
+
+    public fun excute_operation() {
+        
     }
 
     //===========================================================================

@@ -221,45 +221,45 @@ module lending_addr::lending_pool_test {
         assert!(user_balance == 5000000, ERR_TEST);
     }
 
-    //  #[test(admin=@lending_addr, user1=@0x1001, aptos_framework = @aptos_framework)]
-    // public fun test_repay(admin: &signer, user1: &signer, aptos_framework: &signer) acquires FreeCoins {
-    //     let admin_addr = signer::address_of(admin);
-    //     let user1_addr = signer::address_of(user1);
-    //     test_borrow(admin, user1, aptos_framework);
+     #[test(admin=@lending_addr, user1=@0x1001, aptos_framework = @aptos_framework)]
+    public fun test_repay(admin: &signer, user1: &signer, aptos_framework: &signer) acquires FreeCoins {
+        let admin_addr = signer::address_of(admin);
+        let user1_addr = signer::address_of(user1);
+        test_borrow(admin, user1, aptos_framework);
         
-    //     // after repay part of debt
-    //     lending_pool::repay<FakeAPT>(user1, 2000000);
-    //     let addr = digital_asset::get_owner_token(329);
-    //     assert!(addr != user1_addr, ERR_TEST);
-    //     let addr = digital_asset::get_owner_token(98);
-    //     assert!(addr != user1_addr, ERR_TEST);
-    //     let addr = digital_asset::get_owner_token(174);
-    //     assert!(addr != user1_addr, ERR_TEST);
-    //     let (borrow_amount, repaid_amount, total_collateral_amount, health_factor, available_to_borrow) = lending_pool::get_borrower_information(user1_addr);
-    //     assert!(borrow_amount == 3000000, ERR_TEST);
-    //     assert!(repaid_amount == 2000000, ERR_TEST);
-    //     assert!(total_collateral_amount == 3 * 3499000, ERR_TEST);
-    //     assert!(health_factor == 2974150, ERR_TEST);
-    //     assert!(available_to_borrow == 3298200, ERR_TEST);
-    //     let user1_balance = coin::balance<FakeAPT>(user1_addr);
-    //     assert!(user1_balance == 3000000, ERR_TEST);
+        // after repay part of debt
+        lending_pool::repay<FakeAPT>(user1, 2000000);
+        let addr = digital_asset::get_owner_token(329);
+        assert!(addr != user1_addr, ERR_TEST);
+        let addr = digital_asset::get_owner_token(98);
+        assert!(addr != user1_addr, ERR_TEST);
+        let addr = digital_asset::get_owner_token(174);
+        assert!(addr != user1_addr, ERR_TEST);
+        let (borrow_amount, repaid_amount, total_collateral_amount, health_factor, available_to_borrow) = lending_pool::get_borrower_information(user1_addr);
+        assert!(borrow_amount == 3000000, ERR_TEST);
+        assert!(repaid_amount == 2000000, ERR_TEST);
+        assert!(total_collateral_amount == 3 * 3499000, ERR_TEST);
+        assert!(health_factor == 2974150, ERR_TEST);
+        assert!(available_to_borrow == 3298200, ERR_TEST);
+        let user1_balance = coin::balance<FakeAPT>(user1_addr);
+        assert!(user1_balance == 3000000, ERR_TEST);
 
-    //     // after repay all debt
-    //     lending_pool::repay<FakeAPT>(user1, 3000000);
-    //     let addr = digital_asset::get_owner_token(329);
-    //     assert!(addr == user1_addr, ERR_TEST);
-    //     let addr = digital_asset::get_owner_token(98);
-    //     assert!(addr == user1_addr, ERR_TEST);
-    //     let addr = digital_asset::get_owner_token(174);
-    //     assert!(addr == user1_addr, ERR_TEST);
-    //     let (borrow_amount, repaid_amount, total_collateral_amount, health_factor, available_to_borrow) = lending_pool::get_borrower_information(user1_addr);
-    //     assert!(borrow_amount == 0, ERR_TEST);
-    //     assert!(repaid_amount == 0, ERR_TEST);
-    //     assert!(total_collateral_amount == 0, ERR_TEST);
-    //     assert!(health_factor == 0, ERR_TEST);
-    //     assert!(available_to_borrow == 0, ERR_TEST);
-    //     let user1_balance = coin::balance<FakeAPT>(user1_addr);
-    //     assert!(user1_balance == 0, ERR_TEST);
-    // }
+        // after repay all debt
+        lending_pool::repay<FakeAPT>(user1, 3000000);
+        let addr = digital_asset::get_owner_token(329);
+        assert!(addr == user1_addr, ERR_TEST);
+        let addr = digital_asset::get_owner_token(98);
+        assert!(addr == user1_addr, ERR_TEST);
+        let addr = digital_asset::get_owner_token(174);
+        assert!(addr == user1_addr, ERR_TEST);
+        let (borrow_amount, repaid_amount, total_collateral_amount, health_factor, available_to_borrow) = lending_pool::get_borrower_information(user1_addr);
+        assert!(borrow_amount == 0, ERR_TEST);
+        assert!(repaid_amount == 0, ERR_TEST);
+        assert!(total_collateral_amount == 0, ERR_TEST);
+        assert!(health_factor == 0, ERR_TEST);
+        assert!(available_to_borrow == 0, ERR_TEST);
+        let user1_balance = coin::balance<FakeAPT>(user1_addr);
+        assert!(user1_balance == 0, ERR_TEST);
+    }
 
 }
