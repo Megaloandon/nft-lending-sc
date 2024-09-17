@@ -237,6 +237,9 @@ module lending_addr::lending_pool {
         coin::merge(reserve, coin);
 
         // update borrower storage
+        // print(&signer::address_of(sender));
+        // print(&amount);
+        // print(&borrower.borrow_amount);
         borrower.borrow_amount = borrower.borrow_amount - amount;
         borrower.repaid_amount = borrower.repaid_amount + amount;
         borrower.lasted_update_time = timestamp::now_seconds();

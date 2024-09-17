@@ -71,12 +71,15 @@ module lending_addr::exchange_test {
         coin::register<MegaAPT>(user1);
         // admin add to pool
         init_fake_pools(admin);
+        lending_pool::admin_add_pool_for_test<FakeAPT>(admin);
         exchange::admin_add_pool_for_test<FakeAPT>(admin);
         coin::register<FakeAPT>(admin);
         let free_coins = borrow_global_mut<FreeCoins>(admin_addr);
         let admin_deposit_amount: u256 = 1000000000000;
         let apt = coin::extract(&mut free_coins.apt_coin, (admin_deposit_amount as u64));
         coin::deposit<FakeAPT>(admin_addr, apt);
+        lending_pool::deposit<FakeAPT>(admin, admin_deposit_amount);
+
 
         create_fake_user(user1);
         create_fake_user(user2);
@@ -95,7 +98,7 @@ module lending_addr::exchange_test {
     }
 
     #[test(admin = @lending_addr, user1 = @0x1001, user2 = @0x1002, user3 = @0x1003, aptos_framework = @aptos_framework)]
-    public fun test_offer_nft(
+    public fun test_sell_offer_nft(
         admin: &signer, 
         user1: &signer, 
         user2: &signer, 
@@ -167,6 +170,56 @@ module lending_addr::exchange_test {
         
         // seller sell for offer's user2
         exchange::sell_offer_nft<FakeAPT>(user2_addr, 329);
+        let owner_token_addr = digital_asset::get_owner_token(329);
+        assert!(owner_token_addr == user2_addr, ERR_TEST);
+        let seller_balance = coin::balance<FakeAPT>(user1_addr);
+        assert!(seller_balance == 1005120000, ERR_TEST);
+    }
+
+    #[test(admin = @lending_addr, user1 = @0x1001, user2 = @0x1002, user3 = @0x1003, aptos_framework = @aptos_framework)]
+    public fun test_instantly_nft(
+        admin: &signer, 
+        user1: &signer, 
+        user2: &signer, 
+        user3: &signer,
+        aptos_framework: &signer
+    ) acquires FreeCoins {
+        let admin_addr = signer::address_of(admin);
+        let user1_addr = signer::address_of(user1);
+        let user2_addr = signer::address_of(user2);
+        let user3_addr = signer::address_of(user3);
+        // set up test
+        set_up_test_for_time(aptos_framework);
+        lending_pool::init_module_for_tests(admin);
+        exchange::init_module_for_tests(admin);
+        test_init(admin, user1, user2, user3);
+
+        // mint nft for user1
+        create_nft(user1_addr, 329);
+        create_nft(user1_addr, 98);
+        create_nft(user2_addr, 174);
+
+        // user1 and user2 collatearal listing
+        exchange::list_instantly_nft<FakeAPT>(user1, 329);
+        exchange::list_instantly_nft<FakeAPT>(user2, 174);
+        let instantly_nft = exchange::get_all_instantly_nft();
+        let instantly_nft_length = vector::length(&instantly_nft);
+        let token_id_0 = *vector::borrow(&instantly_nft, 0);
+        let token_id_1 = *vector::borrow(&instantly_nft, 1);
+        assert!(instantly_nft_length == 2, ERR_TEST);
+        assert!(token_id_0 == 329, ERR_TEST);
+        assert!(token_id_1 == 174, ERR_TEST);
+        let owner_token = digital_asset::get_owner_token(329);
+        assert!(owner_token != user1_addr, ERR_TEST);
+        let user1_balance = coin::balance<FakeAPT>(user1_addr);
+        assert!(user1_balance == 1002099400, ERR_TEST);
+
+        // sell instantly nft for user3
+        exchange::sell_instantly_nft<FakeAPT>(user3, 329);
+        let owner_token = digital_asset::get_owner_token(329);
+        assert!(owner_token == user3_addr, ERR_TEST);
+        let user1_balance = coin::balance<FakeAPT>(user1_addr);
+        assert!(user1_balance == 1003499000, ERR_TEST);
     }
     
 }

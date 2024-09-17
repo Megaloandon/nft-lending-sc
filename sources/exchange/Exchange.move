@@ -1,11 +1,16 @@
 module lending_addr::exchange {
+    use std::debug::print;
     use std::signer;
+    use std::string;
     use lending_addr::storage;
     use lending_addr::digital_asset;
     use lending_addr::mock_oracle;
     use lending_addr::lending_pool;
+    use std::simple_map::{Self, SimpleMap};
     use lending_addr::mega_coin::{Self, MockAPT};
     use aptos_framework::coin::{Self, Coin};
+    use aptos_framework::account;
+    use aptos_framework::object::{Self, Object, ExtendRef};
 
     friend lending_addr::exchange_test;
 
@@ -13,7 +18,14 @@ module lending_addr::exchange {
         reserve: Coin<CoinType>
     }
 
+    struct ExchangeCreators has key {
+        extend_ref_list: SimpleMap<u64, ExtendRef>,
+    }
+
     fun init_module(sender: &signer) {
+        move_to(sender, ExchangeCreators { 
+            extend_ref_list: simple_map::create(),
+        });
         move_to<MarketReserve<MockAPT>>(sender, MarketReserve<MockAPT> {
             reserve: coin::zero<MockAPT>(),
         });
@@ -33,14 +45,30 @@ module lending_addr::exchange {
         storage::remove_offer_nft(token_id);
     }
 
-    // public entry fun list_instantly_nft<CoinType>(sender: &signer, token_id: u64) {
-    //     let nft_price = mock_oracle::get_floor_price(token_id);
-    //     let instantly_amount = nft_price * 60 / 100;
-    //     lending_pool::deposit_collateral(sender, token_id);
-    //     lending_pool::borrow<CoinType>(sender, instantly_amount);
+    public entry fun list_instantly_nft<CoinType>(sender: &signer, token_id: u64) acquires ExchangeCreators {
+        let extend_ref_list = &mut borrow_global_mut<ExchangeCreators>(@lending_addr).extend_ref_list;
+        // create creator has a role reprensentative for seller to borrow on pool and get instantly liquidity
+        let creator_constructor_ref = &object::create_object(@lending_addr);
+        let creator_extend_ref = object::generate_extend_ref(creator_constructor_ref);
+        let creator = &object::generate_signer_for_extending(&creator_extend_ref);
+        simple_map::add(extend_ref_list, token_id, creator_extend_ref);
+        account::create_account_if_does_not_exist(signer::address_of(creator));
+        coin::register<CoinType>(creator);
+        
+        let nft_price = mock_oracle::get_floor_price(token_id);
+        let instantly_amount = nft_price * 60 / 100;
 
-    //     storage::add_instantly_nft(token_id, signer::address_of(sender)); 
-    // }
+        // withdraw token from user wallet and deposit to creator of this contract, then creator will be borrower of lending pool
+        digital_asset::withdraw_token(sender, token_id);
+        digital_asset::transfer_token(signer::address_of(creator), token_id);
+        lending_pool::deposit_collateral(creator, token_id);
+        lending_pool::borrow<CoinType>(creator, instantly_amount);   
+
+        // withdraw coin from creator and deposit to sender address
+        let coin = coin::withdraw<CoinType>(creator, (instantly_amount as u64));
+        coin::deposit<CoinType>(signer::address_of(sender), coin);
+        storage::add_instantly_nft(token_id, signer::address_of(sender)); 
+    }
 
     public entry fun add_offer<CoinType>(sender: &signer, token_id: u64, offer_price: u256, offer_time: u256) acquires MarketReserve {
         let reserve = &mut borrow_global_mut<MarketReserve<CoinType>>(@lending_addr).reserve;
@@ -67,16 +95,34 @@ module lending_addr::exchange {
         storage::remove_offer_nft(token_id);
     }
 
-    // public entry fun sell_instantly_nft<CoinType>(sender: &signer, token_id: u64) {
-    //     let nft_price = mock_oracle::get_floor_price(token_id);
-    //     let amount_to_repay = nft_price * 60 / 100;
-    //     lending_pool::repay<CoinType>(sender, amount_to_repay);
-    //     let remaining_amount = nft_price - amount_to_repay;
-    //     let nft_owner_addr = storage::get_nft_owner_addr(token_id);
-    //     mega_coin::transfer<CoinType>(sender, nft_owner_addr, (remaining_amount as u64));
-    //     digital_asset::transfer_token(sender, token_id);
-    //     storage::remove_instantly_nft(token_id);
-    // }
+    public entry fun sell_instantly_nft<CoinType>(sender: &signer, token_id: u64) acquires MarketReserve, ExchangeCreators {
+        let extend_ref_list = &borrow_global<ExchangeCreators>(@lending_addr).extend_ref_list;
+        let creator_extend_ref = simple_map::borrow<u64, ExtendRef>(extend_ref_list, &token_id);
+        let creator = &object::generate_signer_for_extending(creator_extend_ref);
+        let nft_price = mock_oracle::get_floor_price(token_id);
+
+        // 60% used to repay debt of lending protocol
+        let amount_to_repay = nft_price * 60 / 100;
+        let reserve = &mut borrow_global_mut<MarketReserve<CoinType>>(@lending_addr).reserve;
+        let coin = coin::withdraw<CoinType>(sender, (nft_price as u64));
+        let coin_to_repay_debt = coin::extract(&mut coin, (amount_to_repay as u64));
+        coin::deposit(signer::address_of(creator), coin_to_repay_debt);
+        // creator of this contract repay debt on behalf of user, then receive NFT -> transfer to buyer
+        lending_pool::repay<CoinType>(creator, amount_to_repay);
+        
+        // withdraw nft from creator and deposit to buyer
+        // let (borrow_amount, repaid_amount, total_collateral_amount, health_factor, available_to_borrow) = lending_pool::get_borrower_information(signer::address_of(creator));  
+        let owner = digital_asset::get_owner_token(token_id);
+        assert!(owner == signer::address_of(creator), 0);
+        digital_asset::withdraw_token(creator, token_id);
+        digital_asset::transfer_token(signer::address_of(sender), token_id);
+
+        // 40% remaining deposit to owner of this NFT
+        let remaining_amount = nft_price - amount_to_repay;
+        let nft_owner_addr = storage::get_nft_owner_addr(token_id);
+        coin::deposit(nft_owner_addr, coin); 
+        storage::remove_instantly_nft(token_id);
+    }
 
     //===========================================================================
     //=============================== View Fucntion =============================
