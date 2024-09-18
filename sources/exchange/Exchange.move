@@ -13,6 +13,8 @@ module lending_addr::exchange {
     use aptos_framework::account;
     use aptos_framework::object::{Self, Object, ExtendRef};
 
+    const ERR_INSUCIENTFUL_BALANCE: u64 = 1000;
+
     friend lending_addr::exchange_test;
 
     struct MarketReserve<phantom CoinType> has key {
@@ -83,6 +85,8 @@ extend_ref_list: SimpleMap<u64, ExtendRef>,
     }
 
     public entry fun add_offer<CoinType>(sender: &signer, token_id: u64, offer_price: u256, offer_time: u256) acquires MarketReserve {
+        let floor_price = mock_oracle::get_floor_price(token_id);
+        assert!(offer_price >= floor_price, ERR_INSUCIENTFUL_BALANCE);
         let reserve = &mut borrow_global_mut<MarketReserve<CoinType>>(@lending_addr).reserve;
         let coin = coin::withdraw<CoinType>(sender, (offer_price as u64));
         coin::merge(reserve, coin);
@@ -97,7 +101,7 @@ extend_ref_list: SimpleMap<u64, ExtendRef>,
         storage::user_remove_offer(sender_addr, token_id);
     }
 
-    public entry fun buy_with_offer_nft<CoinType>(sender_addr: address, token_id: u64) acquires MarketReserve {
+    public entry fun sell_with_offer_nft<CoinType>(sender_addr: address, token_id: u64) acquires MarketReserve {
         sell_offer_nft<CoinType>(sender_addr, token_id);
     }
 
