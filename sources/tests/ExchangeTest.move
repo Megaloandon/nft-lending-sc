@@ -171,7 +171,7 @@ module lending_addr::exchange_test {
         assert!(offer_price == 5120000, ERR_TEST);
         
         // seller sell for offer's user2
-        exchange::sell_offer_nft<FakeAPT>(user2_addr, 329);
+        exchange::buy_with_offer_nft<FakeAPT>(user2_addr, 329);
         let owner_token_addr = digital_asset::get_owner_token(329);
         assert!(owner_token_addr == user2_addr, ERR_TEST);
         let seller_balance = coin::balance<FakeAPT>(user1_addr);
@@ -217,7 +217,7 @@ module lending_addr::exchange_test {
         assert!(user1_balance == 1002099400, ERR_TEST);
 
         // sell instantly nft for user3
-        exchange::sell_instantly_nft<FakeAPT>(user3, 329);
+        exchange::buy_with_full_payment<FakeAPT>(user3, 329);
         let owner_token = digital_asset::get_owner_token(329);
         assert!(owner_token == user3_addr, ERR_TEST);
         let user1_balance = coin::balance<FakeAPT>(user1_addr);

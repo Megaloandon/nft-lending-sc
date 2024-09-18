@@ -5,14 +5,18 @@ module lending_addr::lending_pool {
     use std::signer;
     use std::simple_map::{Self, SimpleMap};
     use aptos_framework::timestamp;
+    use aptos_framework::account;
     use aptos_framework::coin::{Self, Coin};
+    use aptos_framework::object;
     use lending_addr::mega_coin::{Self, MockAPT, MegaAPT};
     use lending_addr::digital_asset;
     use lending_addr::mock_oracle;
+    use lending_addr::mock_flash_loan;
 
     const YEAR_TO_SECOND: u256 = 31536000;
     const BASE: u256 = 1000000;
     const ERR_INSUCCIENTFUL: u64 = 1000;
+    const INITIAL_COIN: u256 = 1000000000000;
 
     friend lending_addr::exchange;
 
@@ -77,6 +81,18 @@ module lending_addr::lending_pool {
     // ===================================================================================
     // ================================= Entry Function ==================================
     // ===================================================================================
+
+    public entry fun create_reserve<CoinType>() acquires Market, MarketReserve {
+        let creator_constructor_ref = &object::create_object(@lending_addr);
+        let creator_extend_ref = object::generate_extend_ref(creator_constructor_ref);
+        let creator = &object::generate_signer_for_extending(&creator_extend_ref);
+        account::create_account_if_does_not_exist(signer::address_of(creator));
+        coin::register<CoinType>(creator);
+        coin::register<MegaAPT>(creator);
+        mega_coin::mint<CoinType>(signer::address_of(creator), 2 * (INITIAL_COIN as u64));
+        deposit<CoinType>(creator, INITIAL_COIN);
+        mock_flash_loan::deposit<CoinType>(creator, INITIAL_COIN);
+    }
 
     public entry fun deposit<CoinType>(sender: &signer, amount: u256) acquires Market, MarketReserve {
         let sender_addr = signer::address_of(sender);

@@ -22,7 +22,7 @@ module lending_addr::mock_flash_loan {
         });
     }
 
-    public fun deposit<CoinType>(sender: &signer, amount: u256) acquires MarketReserve {
+    public entry fun deposit<CoinType>(sender: &signer, amount: u256) acquires MarketReserve {
         let reserve = &mut borrow_global_mut<MarketReserve<CoinType>>(@lending_addr).reserve;
         let coin = coin::withdraw<CoinType>(sender, (amount as u64));
         coin::merge(reserve, coin);

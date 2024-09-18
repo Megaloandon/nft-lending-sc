@@ -5,7 +5,7 @@ module lending_addr::mega_coin {
     use aptos_framework::coin::{Coin, Self, MintCapability, BurnCapability};
 
     const BASE: u64 = 1000000;
-    const INITIAL_SUPPLY: u64 = 1000000000000000;
+    const INITIAL_SUPPLY: u64 = 1000000000000000; // 1 billion
 
     friend lending_addr::lending_pool;
     friend lending_addr::lending_pool_test;

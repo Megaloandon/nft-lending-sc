@@ -19,7 +19,6 @@ module lending_addr::exchange {
         reserve: Coin<CoinType>
     }
 
-
     // creator represent for seller to borrow instantly 60% of each NFT
     struct ExchangeCreators has key {
         extend_ref_list: SimpleMap<u64, ExtendRef>,
@@ -98,7 +97,47 @@ extend_ref_list: SimpleMap<u64, ExtendRef>,
         storage::user_remove_offer(sender_addr, token_id);
     }
 
-    public entry fun sell_offer_nft<CoinType>(receiver_addr: address, token_id: u64) acquires MarketReserve {
+    public entry fun buy_with_offer_nft<CoinType>(sender_addr: address, token_id: u64) acquires MarketReserve {
+        sell_offer_nft<CoinType>(sender_addr, token_id);
+    }
+
+    public entry fun buy_with_full_payment<CoinType>(sender: &signer, token_id: u64) acquires MarketReserve, ExchangeCreators {
+        sell_instantly_nft<CoinType>(sender, token_id);
+    }
+
+    public entry fun buy_with_down_payment<CoinType>(sender: &signer, token_id: u64) acquires  MarketReserve, ExchangeCreators {
+        // create creator has a role reprensentative for BUYER to make flash loan and borrow 60% full paymment price of NFT
+        let creator_constructor_ref = &object::create_object(@lending_addr);
+        let creator_extend_ref = object::generate_extend_ref(creator_constructor_ref);
+        let creator = &object::generate_signer_for_extending(&creator_extend_ref);
+        account::create_account_if_does_not_exist(signer::address_of(creator));
+        coin::register<CoinType>(creator);
+
+        let full_payment_price = mock_oracle::get_full_payment_price(token_id);
+        let pre_payment = full_payment_price * 40 / 100;
+        let coin = coin::withdraw<CoinType>(sender, (pre_payment as u64));
+        coin::deposit<CoinType>(signer::address_of(creator), coin);
+        // make flash loan and repay flash loan in one transaction
+        let remaining_payment = full_payment_price - pre_payment;
+        mock_flash_loan::flash_loan<CoinType>(creator, remaining_payment);
+        // buy instantly nft which listed 
+        sell_instantly_nft<CoinType>(creator, token_id);
+        // deposit NFT to owner who is represented for the Loan
+        digital_asset::withdraw_token(creator, token_id);
+        digital_asset::transfer_token(signer::address_of(sender), token_id);
+        // list to exchange and instantly received 60% to repay flash loan
+        list_instantly_nft<CoinType>(sender, token_id);
+        let coin = coin::withdraw<CoinType>(sender, (remaining_payment as u64));
+        coin::deposit<CoinType>(signer::address_of(creator), coin);
+        mock_flash_loan::repay_flash_loan<CoinType>(creator);
+        // right now buyer is the borrower of lending protocol
+    }
+
+    //=============================================================================
+    //=============================== Helper Fucntion =============================
+    //=============================================================================
+
+    fun sell_offer_nft<CoinType>(receiver_addr: address, token_id: u64) acquires MarketReserve {
         let (offer_price, offer_time) = storage::get_offer_information(token_id,  receiver_addr);
         let nft_owner_addr = storage::get_nft_owner_addr(token_id);
         let reserve = &mut borrow_global_mut<MarketReserve<CoinType>>(@lending_addr).reserve;
@@ -108,7 +147,7 @@ extend_ref_list: SimpleMap<u64, ExtendRef>,
         storage::remove_offer_nft(token_id);
     }
 
-    public entry fun sell_instantly_nft<CoinType>(sender: &signer, token_id: u64) acquires MarketReserve, ExchangeCreators {
+    fun sell_instantly_nft<CoinType>(sender: &signer, token_id: u64) acquires MarketReserve, ExchangeCreators {
         let extend_ref_list = &mut borrow_global_mut<ExchangeCreators>(@lending_addr).extend_ref_list;
         let creator_extend_ref = simple_map::borrow<u64, ExtendRef>(extend_ref_list, &token_id);
         let creator = &object::generate_signer_for_extending(creator_extend_ref);
@@ -138,35 +177,7 @@ extend_ref_list: SimpleMap<u64, ExtendRef>,
         // remove creator of this NFT
         simple_map::remove(extend_ref_list, &token_id);
     }
-
-    public entry fun buy_with_down_payment<CoinType>(sender: &signer, token_id: u64) acquires  MarketReserve, ExchangeCreators {
-        // create creator has a role reprensentative for BUYER to make flash loan and borrow 60% full paymment price of NFT
-        let creator_constructor_ref = &object::create_object(@lending_addr);
-        let creator_extend_ref = object::generate_extend_ref(creator_constructor_ref);
-        let creator = &object::generate_signer_for_extending(&creator_extend_ref);
-        account::create_account_if_does_not_exist(signer::address_of(creator));
-        coin::register<CoinType>(creator);
-
-        let full_payment_price = mock_oracle::get_full_payment_price(token_id);
-        let pre_payment = full_payment_price * 40 / 100;
-        let coin = coin::withdraw<CoinType>(sender, (pre_payment as u64));
-        coin::deposit<CoinType>(signer::address_of(creator), coin);
-        // make flash loan and repay flash loan in one transaction
-        let remaining_payment = full_payment_price - pre_payment;
-        mock_flash_loan::flash_loan<CoinType>(creator, remaining_payment);
-        // buy instantly nft which listed 
-        sell_instantly_nft<CoinType>(creator, token_id);
-        // deposit NFT to owner who is represented for the Loan
-        digital_asset::withdraw_token(creator, token_id);
-        digital_asset::transfer_token(signer::address_of(sender), token_id);
-        // list to exchange and instantly received 60% to repay flash loan
-        list_instantly_nft<CoinType>(sender, token_id);
-        let coin = coin::withdraw<CoinType>(sender, (remaining_payment as u64));
-        coin::deposit<CoinType>(signer::address_of(creator), coin);
-        mock_flash_loan::repay_flash_loan<CoinType>(creator);
-        // right now buyer is the lender of lending protocol
-    }
-
+    
     //===========================================================================
     //=============================== View Fucntion =============================
     //===========================================================================
