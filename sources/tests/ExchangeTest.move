@@ -13,6 +13,7 @@ module lending_addr::exchange_test {
     use lending_addr::mock_flash_loan;
 
     const ERR_TEST: u64 = 1000;
+    const COLLECTION_NAME_TEST: vector<u8> = b"Collection Test";
 
     struct FakeAPT {}
 
@@ -86,12 +87,19 @@ module lending_addr::exchange_test {
         create_fake_user(user1);
         create_fake_user(user2);
         create_fake_user(user3);
+        digital_asset::create_collection(
+            string::utf8(b"Description"),
+            7777,
+            string::utf8(COLLECTION_NAME_TEST),
+            string::utf8(b"Uri"),
+        )
     }
     
     #[test_only]
     public fun create_nft(owner_addr: address, token_id: u64) {
         digital_asset::mint_token(
             owner_addr,
+            string::utf8(COLLECTION_NAME_TEST),
             token_id,
             string::utf8(b"AptosMonkeys"),
             string::utf8(b"Aptos Monkeys"),
@@ -123,9 +131,9 @@ module lending_addr::exchange_test {
         create_nft(user1_addr, 174);
 
         // list offer NFT
-        exchange::list_offer_nft(user1, 329);
-        exchange::list_offer_nft(user1, 98);
-        exchange::list_offer_nft(user1, 174);
+        exchange::list_offer_nft(user1, string::utf8(COLLECTION_NAME_TEST), 329);
+        exchange::list_offer_nft(user1, string::utf8(COLLECTION_NAME_TEST), 98);
+        exchange::list_offer_nft(user1, string::utf8(COLLECTION_NAME_TEST), 174);
 
         let offer_nft_list = exchange::get_all_offer_nft();
         let numbers = vector::length(&offer_nft_list);
@@ -136,14 +144,14 @@ module lending_addr::exchange_test {
         assert!(token_id_0 == 329, ERR_TEST);
         assert!(token_id_1 == 98, ERR_TEST);
         assert!(token_id_2 == 174, ERR_TEST);
-        let owner_token_id_2 = digital_asset::get_owner_token(98);
+        let owner_token_id_2 = digital_asset::get_owner_token(string::utf8(COLLECTION_NAME_TEST), 98);
         assert!(owner_token_id_2 != user1_addr, ERR_TEST);
         // cancle list offer NFT 98
-        exchange::cancle_list_offer_nft(user1_addr, 98);
+        exchange::cancle_list_offer_nft(user1_addr, string::utf8(COLLECTION_NAME_TEST), 98);
         let offer_nft_list = exchange::get_all_offer_nft();
         let numbers = vector::length(&offer_nft_list);
         assert!(numbers == 2, ERR_TEST);
-        let owner_token_id_2 = digital_asset::get_owner_token(98);
+        let owner_token_id_2 = digital_asset::get_owner_token(string::utf8(COLLECTION_NAME_TEST), 98);
         assert!(owner_token_id_2 == user1_addr, ERR_TEST);
 
         // user2 make offer
@@ -171,8 +179,8 @@ module lending_addr::exchange_test {
         assert!(offer_price == 5120000, ERR_TEST);
         
         // seller sell for offer's user2
-        exchange::sell_with_offer_nft<FakeAPT>(user2_addr, 329);
-        let owner_token_addr = digital_asset::get_owner_token(329);
+        exchange::sell_with_offer_nft<FakeAPT>(user2_addr, string::utf8(COLLECTION_NAME_TEST), 329);
+        let owner_token_addr = digital_asset::get_owner_token(string::utf8(COLLECTION_NAME_TEST), 329);
         assert!(owner_token_addr == user2_addr, ERR_TEST);
         let seller_balance = coin::balance<FakeAPT>(user1_addr);
         assert!(seller_balance == 1005120000, ERR_TEST);
@@ -202,8 +210,8 @@ module lending_addr::exchange_test {
         create_nft(user2_addr, 174);
 
         // user1 and user2 collatearal listing
-        exchange::list_instantly_nft<FakeAPT>(user1, 329);
-        exchange::list_instantly_nft<FakeAPT>(user2, 174);
+        exchange::list_instantly_nft<FakeAPT>(user1, string::utf8(COLLECTION_NAME_TEST), 329);
+        exchange::list_instantly_nft<FakeAPT>(user2, string::utf8(COLLECTION_NAME_TEST), 174);
         let instantly_nft = exchange::get_all_instantly_nft();
         let instantly_nft_length = vector::length(&instantly_nft);
         let token_id_0 = *vector::borrow(&instantly_nft, 0);
@@ -211,14 +219,14 @@ module lending_addr::exchange_test {
         assert!(instantly_nft_length == 2, ERR_TEST);
         assert!(token_id_0 == 329, ERR_TEST);
         assert!(token_id_1 == 174, ERR_TEST);
-        let owner_token = digital_asset::get_owner_token(329);
+        let owner_token = digital_asset::get_owner_token(string::utf8(COLLECTION_NAME_TEST), 329);
         assert!(owner_token != user1_addr, ERR_TEST);
         let user1_balance = coin::balance<FakeAPT>(user1_addr);
         assert!(user1_balance == 1002099400, ERR_TEST);
 
         // sell instantly nft for user3
-        exchange::buy_with_full_payment<FakeAPT>(user3, 329);
-        let owner_token = digital_asset::get_owner_token(329);
+        exchange::buy_with_full_payment<FakeAPT>(user3, string::utf8(COLLECTION_NAME_TEST), 329);
+        let owner_token = digital_asset::get_owner_token(string::utf8(COLLECTION_NAME_TEST), 329);
         assert!(owner_token == user3_addr, ERR_TEST);
         let user1_balance = coin::balance<FakeAPT>(user1_addr);
         assert!(user1_balance == 1003499000, ERR_TEST);
@@ -248,15 +256,15 @@ module lending_addr::exchange_test {
         create_nft(user2_addr, 174);
 
         // user1 and user2 collatearal listing
-        exchange::list_instantly_nft<FakeAPT>(user1, 329);
-        exchange::list_instantly_nft<FakeAPT>(user2, 174);
+        exchange::list_instantly_nft<FakeAPT>(user1, string::utf8(COLLECTION_NAME_TEST), 329);
+        exchange::list_instantly_nft<FakeAPT>(user2, string::utf8(COLLECTION_NAME_TEST), 174);
 
         let user3_balance = coin::balance<FakeAPT>(user3_addr);
         assert!(user3_balance == 1000000000, ERR_TEST);
-        exchange::buy_with_down_payment<FakeAPT>(user3, 329);
+        exchange::buy_with_down_payment<FakeAPT>(user3, string::utf8(COLLECTION_NAME_TEST), 329);
         let user3_balance = coin::balance<FakeAPT>(user3_addr);
         assert!(user3_balance == (1000000000 - 3499000 * 40 / 100), ERR_TEST);
-        let owner_token = digital_asset::get_owner_token(329);
+        let owner_token = digital_asset::get_owner_token(string::utf8(COLLECTION_NAME_TEST), 329);
         assert!(owner_token != user3_addr, ERR_TEST);
     }
     

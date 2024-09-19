@@ -154,7 +154,7 @@ module lending_addr::lending_pool {
         lender.lasted_update_time = timestamp::now_seconds();
     }
 
-    public entry fun deposit_collateral(sender: &signer, token_id: u64) acquires Market {
+    public entry fun deposit_collateral(sender: &signer, collection_name: String, token_id: u64) acquires Market {
         let sender_addr = signer::address_of(sender);
         let market = borrow_global_mut<Market>(@lending_addr);
         let borrower_list = &mut market.borrower_list;
@@ -164,8 +164,8 @@ module lending_addr::lending_pool {
         let nft = get_nft_configuration(token_id);
         let new_available_to_borrow = nft.price * nft.ltv / BASE;
         // get NFT from user wallet and transfer debt NFT to user wallet
-        digital_asset::withdraw_token(sender, token_id);
-        digital_asset::transfer_debt_token(sender_addr, token_id);
+        digital_asset::withdraw_token(sender, collection_name, token_id);
+        digital_asset::transfer_debt_token(sender_addr, collection_name, token_id);
         
         // update borrower storage
         if(is_borrower_exist) {
@@ -240,7 +240,7 @@ module lending_addr::lending_pool {
         borrower.available_to_borrow = borrower.available_to_borrow - amount;
     }
 
-    public entry fun repay<CoinType>(sender: &signer, amount: u256) acquires Market, MarketReserve {
+    public entry fun repay<CoinType>(sender: &signer, collection_name: String, amount: u256) acquires Market, MarketReserve {
         let sender_addr = signer::address_of(sender);
         let market = borrow_global_mut<Market>(@lending_addr);
         let borrower_list = &mut market.borrower_list;
@@ -286,8 +286,8 @@ module lending_addr::lending_pool {
             while(i >= 0) {
                 let token_id = *vector::borrow(collateral_list, (i as u64));
                 // transfer NFT to user wallet and get debt NFT form user wallet
-                digital_asset::transfer_token(sender_addr, token_id);
-                digital_asset::withdraw_debt_token(sender, token_id);
+                digital_asset::transfer_token(sender_addr, collection_name, token_id);
+                digital_asset::withdraw_debt_token(sender, collection_name, token_id);
                 vector::remove(collateral_list, (i as u64));
                 simple_map::remove(collateral_map, &token_id);
                 if(i == 0) {
