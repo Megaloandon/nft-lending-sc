@@ -41,10 +41,11 @@ module lending_addr::mega_coin {
         coin::destroy_freeze_cap<MegaAPT>(mega_apt_freeze);
     }
 
-    public entry fun mint<CoinType>(sender_addr: address, amount: u64) acquires CoinCapability {
+    public entry fun mint<CoinType>(sender: &signer, amount: u64) acquires CoinCapability {
+        register(sender);
         let coin_cap = borrow_global_mut<CoinCapability<CoinType>>(@lending_addr);
         let coin = coin::extract(&mut coin_cap.coin, amount);
-        coin::deposit<CoinType>(sender_addr, coin);
+        coin::deposit<CoinType>(signer::address_of(sender), coin);
     }
 
     public entry fun withdraw<CoinType>(sender: &signer, amount: u64) acquires CoinCapability {

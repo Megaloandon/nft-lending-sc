@@ -30,6 +30,11 @@ module lending_addr::lending_pool {
         lasted_update_time: u64,
     }
 
+    struct Collateral has key, store, drop, copy {
+        collection_name: String,
+        token_id: u64,
+    }
+
     // store loan information of each borrower
     struct Borrower has key, store, copy, drop {
         borrow_amount: u256,
@@ -38,7 +43,7 @@ module lending_addr::lending_pool {
         lasted_update_time: u64,
         health_factor: u256,
         available_to_borrow: u256,
-        collateral_list: vector<u64>,
+        collateral_list: vector<Collateral>,
         collateral_map: SimpleMap<u64, NFT>,
     }
 
@@ -89,7 +94,7 @@ module lending_addr::lending_pool {
         account::create_account_if_does_not_exist(signer::address_of(creator));
         coin::register<CoinType>(creator);
         coin::register<MegaAPT>(creator);
-        mega_coin::mint<CoinType>(signer::address_of(creator), 2 * (INITIAL_COIN as u64));
+        mega_coin::mint<CoinType>(creator, 2 * (INITIAL_COIN as u64));
         deposit<CoinType>(creator, INITIAL_COIN);
         mock_flash_loan::deposit<CoinType>(creator, INITIAL_COIN);
     }
@@ -125,7 +130,7 @@ module lending_addr::lending_pool {
         };
 
         // mint mAPT for user 
-        mega_coin::mint<MegaAPT>(sender_addr, (amount as u64));
+        mega_coin::mint<MegaAPT>(sender, (amount as u64));
     }
 
     public entry fun withdraw<CoinType>(sender: &signer, amount: u256) acquires Market, MarketReserve {
@@ -181,15 +186,21 @@ module lending_addr::lending_pool {
             let collateral_map = &mut borrower.collateral_map;
             let collateral_list = &mut borrower.collateral_list;
             simple_map::add(collateral_map, token_id, nft);
-            vector::push_back(collateral_list, token_id);
-
-            
+            let collateral = Collateral {
+                collection_name,
+                token_id,
+            };
+            vector::push_back(collateral_list, collateral);
         } else {
             let new_collateral_map: SimpleMap<u64, NFT> = simple_map::create();
             let collateral_amount = nft.price;
             simple_map::add(&mut new_collateral_map, token_id, nft);
-            let new_collateral_list: vector<u64> = vector::empty();
-            vector::push_back(&mut new_collateral_list, token_id);
+            let new_collateral_list: vector<Collateral> = vector::empty();
+            let collateral = Collateral {
+                collection_name,
+                token_id,
+            };
+            vector::push_back(&mut new_collateral_list, collateral);
             let borrower = Borrower {
                 borrow_amount: 0,
                 repaid_amount: 0,
@@ -230,8 +241,9 @@ module lending_addr::lending_pool {
         let i = 0;
         let hf_without_debt = 0;
         while (i < collateral_numbers) {
-            let token_id = vector::borrow(collateral_list, (i as u64));
-            let nft = simple_map::borrow<u64, NFT>(collateral_map, token_id);
+            let collateral = vector::borrow(collateral_list, (i as u64));
+            let token_id = collateral.token_id;
+            let nft = simple_map::borrow<u64, NFT>(collateral_map, &token_id);
             hf_without_debt = hf_without_debt + nft.price * nft.liquidation_threshold;
             i = i + 1;
         };
@@ -266,8 +278,9 @@ module lending_addr::lending_pool {
         let i = 0;
         let hf_without_debt = 0;
         while (i < collateral_numbers) {
-            let token_id = vector::borrow(collateral_list, (i as u64));
-            let nft = simple_map::borrow<u64, NFT>(collateral_map, token_id);
+            let collateral = vector::borrow(collateral_list, (i as u64));
+            let token_id = collateral.token_id;
+            let nft = simple_map::borrow<u64, NFT>(collateral_map, &token_id);
             hf_without_debt = hf_without_debt + nft.price * nft.liquidation_threshold;
             i = i + 1;
         };
@@ -284,7 +297,8 @@ module lending_addr::lending_pool {
             let collateral_numbers = vector::length(collateral_list);
             let i = collateral_numbers - 1;
             while(i >= 0) {
-                let token_id = *vector::borrow(collateral_list, (i as u64));
+                let collateral = vector::borrow(collateral_list, (i as u64));
+                let token_id = collateral.token_id;
                 // transfer NFT to user wallet and get debt NFT form user wallet
                 digital_asset::transfer_token(sender_addr, collection_name, token_id);
                 digital_asset::withdraw_debt_token(sender, collection_name, token_id);
@@ -299,21 +313,6 @@ module lending_addr::lending_pool {
         };
         
         
-    }
-
-    // @todo
-    public entry fun auction() {
-
-    }
-
-    // @todo
-    public entry fun redeem() {
-
-    }
-
-    // @todo
-    public entry fun liquidate() {
-
     }
 
     // ===================================================================================
@@ -369,12 +368,23 @@ module lending_addr::lending_pool {
     }
 
     #[view]
-    public fun get_collateral_list(user_addr: address): vector<u64> acquires Market {
+    public fun get_collateral_numbers(user_addr: address): u64 acquires Market {
         let market = borrow_global_mut<Market>(@lending_addr);
         let borrower_map = &mut market.borrower_map;
         let borrower = simple_map::borrow_mut<address, Borrower>(borrower_map, &user_addr);
-        let collateral_list = borrower.collateral_list;
-        collateral_list
+        let collateral_list = &borrower.collateral_list;
+        let collateral_numbers = vector::length(collateral_list);
+        collateral_numbers
+    }
+
+    #[view]
+    public fun get_collateral(user_addr: address, collateral_id: u64): (String, u64) acquires Market {
+        let market = borrow_global_mut<Market>(@lending_addr);
+        let borrower_map = &mut market.borrower_map;
+        let borrower = simple_map::borrow_mut<address, Borrower>(borrower_map, &user_addr);
+        let collateral_list = &borrower.collateral_list;
+        let collateral = vector::borrow(collateral_list, collateral_id);
+        (collateral.collection_name, collateral.token_id)
     }
 
     #[view]

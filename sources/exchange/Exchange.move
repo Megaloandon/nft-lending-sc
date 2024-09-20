@@ -49,16 +49,20 @@ extend_ref_list: SimpleMap<u64, ExtendRef>,
     //=============================== Entry Fucntion =============================
     //============================================================================
     
+    // Seller list nft and wait for buyers
     public entry fun list_offer_nft(sender: &signer, collection_name: String, token_id: u64) {
         digital_asset::withdraw_token(sender, collection_name, token_id);
         storage::add_offer_nft(token_id, signer::address_of(sender));
     }
 
-    public entry fun cancle_list_offer_nft(sender_addr: address, collection_name: String, token_id: u64) {
+    // Seller cancel list nft
+    public entry fun cancel_list_offer_nft(sender_addr: address, collection_name: String, token_id: u64) {
         digital_asset::transfer_token(sender_addr, collection_name, token_id);
         storage::remove_offer_nft(token_id);
     }
 
+
+    // Seller list nft to instantly receive coin
     public entry fun list_instantly_nft<CoinType>(sender: &signer, collection_name: String, token_id: u64) acquires ExchangeCreators {
         let extend_ref_list = &mut borrow_global_mut<ExchangeCreators>(@lending_addr).extend_ref_list;
         // create creator has a role reprensentative for seller to borrow on pool and get instantly liquidity
@@ -84,6 +88,7 @@ extend_ref_list: SimpleMap<u64, ExtendRef>,
         storage::add_instantly_nft(token_id, signer::address_of(sender)); 
     }
 
+    // Buyer offer specify nft with offer price and offer time to buy nft
     public entry fun add_offer<CoinType>(sender: &signer, token_id: u64, offer_price: u256, offer_time: u256) acquires MarketReserve {
         let floor_price = mock_oracle::get_floor_price(token_id);
         assert!(offer_price >= floor_price, ERR_INSUCIENTFUL_BALANCE);
@@ -93,6 +98,8 @@ extend_ref_list: SimpleMap<u64, ExtendRef>,
         storage::user_add_offer(signer::address_of(sender), token_id, offer_price, offer_time);
     }
 
+
+    // Buyer cancel offer
     public entry fun remove_offer<CoinType>(sender_addr: address, token_id: u64) acquires MarketReserve {
         let (offer_price, offer_time) = storage::get_offer_information(token_id,  sender_addr);
         let reserve = &mut borrow_global_mut<MarketReserve<CoinType>>(@lending_addr).reserve;
@@ -100,15 +107,22 @@ extend_ref_list: SimpleMap<u64, ExtendRef>,
         coin::deposit(sender_addr, coin);
         storage::user_remove_offer(sender_addr, token_id);
     }
+    
 
+    /*
+        Seller sell nft which offerd by buyer(sender_addr)
+        @params sender_addr: address of buyer who make offer
+    */
     public entry fun sell_with_offer_nft<CoinType>(sender_addr: address, collection_name: String, token_id: u64) acquires MarketReserve {
         sell_offer_nft<CoinType>(sender_addr, collection_name, token_id);
     }
 
+    // Buyer call this function to buy nft with full payment
     public entry fun buy_with_full_payment<CoinType>(sender: &signer, collection_name: String, token_id: u64) acquires MarketReserve, ExchangeCreators {
         sell_instantly_nft<CoinType>(sender, collection_name, token_id);
     }
 
+    // Buyer call this function to buy nft with down payment
     public entry fun buy_with_down_payment<CoinType>(sender: &signer, collection_name: String, token_id: u64) acquires  MarketReserve, ExchangeCreators {
         // create creator has a role reprensentative for BUYER to make flash loan and borrow 60% full paymment price of NFT
         let creator_constructor_ref = &object::create_object(@lending_addr);

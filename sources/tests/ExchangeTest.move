@@ -146,8 +146,8 @@ module lending_addr::exchange_test {
         assert!(token_id_2 == 174, ERR_TEST);
         let owner_token_id_2 = digital_asset::get_owner_token(string::utf8(COLLECTION_NAME_TEST), 98);
         assert!(owner_token_id_2 != user1_addr, ERR_TEST);
-        // cancle list offer NFT 98
-        exchange::cancle_list_offer_nft(user1_addr, string::utf8(COLLECTION_NAME_TEST), 98);
+        // cancel list offer NFT 98
+        exchange::cancel_list_offer_nft(user1_addr, string::utf8(COLLECTION_NAME_TEST), 98);
         let offer_nft_list = exchange::get_all_offer_nft();
         let numbers = vector::length(&offer_nft_list);
         assert!(numbers == 2, ERR_TEST);
