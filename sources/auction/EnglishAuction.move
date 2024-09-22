@@ -26,7 +26,7 @@ module lending_addr::english_auction {
         winner_amount: u256,
     }
 
-    struct NFTToAuction has key, store, drop {
+    struct NFTToAuction has key, store, drop, copy {
         collection_name: String,
         token_id: u64,
     }
@@ -36,7 +36,7 @@ module lending_addr::english_auction {
         nft_to_auction_map: SimpleMap<NFTToAuction, BidRecord>,
     }
 
-    fun init_moudule(sender: &signer) {
+    fun init_module(sender: &signer) {
         move_to(sender, AuctionRecord {
             nft_to_auction_list: vector::empty(),
             nft_to_auction_map: simple_map::create(),
@@ -52,7 +52,9 @@ module lending_addr::english_auction {
     //=====================================================================================
 
     public entry fun add_nft_to_auction(owner_addr: address, collection_name: String, token_id: u64, current_debt: u256) acquires AuctionRecord {
-        let nft_to_auction_map = &mut borrow_global_mut<AuctionRecord>(@lending_addr).nft_to_auction_map;
+        let auction_record = borrow_global_mut<AuctionRecord>(@lending_addr);
+        let nft_to_auction_map = &mut auction_record.nft_to_auction_map;
+        let nft_to_auction_list = &mut auction_record.nft_to_auction_list;
         let nft_to_auction = NFTToAuction {
             collection_name,
             token_id,
@@ -66,7 +68,8 @@ module lending_addr::english_auction {
             winner_addr: @0x0,
             winner_amount: 0,
         };
-        simple_map::add(nft_to_auction_map, nft_to_auction, bid_record);
+        vector::push_back(nft_to_auction_list, copy nft_to_auction);
+        simple_map::add(nft_to_auction_map, copy nft_to_auction, bid_record);
     }  
 
     public entry fun initialize_with_bid<CoinType>(sender: &signer, collection_name: String, token_id: u64, bid_amount: u256) acquires AuctionRecord, MarketReserve {
@@ -97,7 +100,7 @@ module lending_addr::english_auction {
             token_id,
         };
         let bid_record = simple_map::borrow_mut<NFTToAuction, BidRecord>(nft_to_auction_map, &nft_to_auction);
-        let require_bid_amount = bid_record.current_bid_amount + bid_record.current_debt * 101 / 100; // + 1% debt      
+        let require_bid_amount = bid_record.current_bid_amount + bid_record.current_debt * 1 / 100; // + 1% debt      
         assert!(bid_amount >= require_bid_amount, ERR_INSUFFICIENT_BALANCE);
 
         // refund
@@ -131,8 +134,6 @@ module lending_addr::english_auction {
         let reserve = &mut borrow_global_mut<MarketReserve<CoinType>>(@lending_addr).reserve;
         let coin = coin::extract(reserve, (bid_record.current_debt as u64));
         coin::deposit(signer::address_of(creator), coin);
-        lending_pool::repay<CoinType>(creator, bid_record.current_debt);
-        digital_asset::transfer_token(bid_record.winner_addr, collection_name, token_id);
 
         // deposit remaining amount to owner of address
         let remaining_amount = bid_record.current_bid_amount - bid_record.current_debt;
@@ -175,5 +176,52 @@ module lending_addr::english_auction {
             bid_record.winner_addr,
             bid_record.winner_amount,
         )
+    }
+
+    #[view]
+    public fun check_if_first_bid(collection_name: String, token_id: u64): bool acquires AuctionRecord {
+        let nft_to_auction_map = &borrow_global<AuctionRecord>(@lending_addr).nft_to_auction_map;
+        let nft_to_auction = NFTToAuction {
+            collection_name,
+            token_id,
+        };
+        let bid_record = simple_map::borrow<NFTToAuction, BidRecord>(nft_to_auction_map, &nft_to_auction);
+        let is_first_bid = (bid_record.first_bid_addr == @0x0);
+        is_first_bid
+    }
+
+    public fun get_minimum_first_bid(collection_name: String, token_id: u64): u256 acquires AuctionRecord {
+        let nft_to_auction_map = &borrow_global<AuctionRecord>(@lending_addr).nft_to_auction_map;
+        let nft_to_auction = NFTToAuction {
+            collection_name,
+            token_id,
+        };
+        let bid_record = simple_map::borrow<NFTToAuction, BidRecord>(nft_to_auction_map, &nft_to_auction);
+        let minimum_bid = bid_record.current_debt;
+        minimum_bid
+    }
+
+    #[view]
+    public fun get_minimum_bid(collection_name: String, token_id: u64): u256 acquires AuctionRecord {
+        let nft_to_auction_map = &borrow_global<AuctionRecord>(@lending_addr).nft_to_auction_map;
+        let nft_to_auction = NFTToAuction {
+            collection_name,
+            token_id,
+        };
+        let bid_record = simple_map::borrow<NFTToAuction, BidRecord>(nft_to_auction_map, &nft_to_auction);
+        let minimum_bid = bid_record.current_bid_amount + bid_record.current_debt * 1 / 100;
+        minimum_bid
+    }
+
+    #[test_only]
+    public fun init_module_for_tests(sender: &signer) {
+        init_module(sender);
+    }
+
+    #[test_only]
+    public fun admin_add_pool_for_test<CoinType>(sender: &signer) {
+        move_to<MarketReserve<CoinType>>(sender, MarketReserve<CoinType> {
+            reserve: coin::zero<CoinType>(),
+        });
     }
 }
