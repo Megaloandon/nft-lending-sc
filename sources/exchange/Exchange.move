@@ -178,7 +178,7 @@ extend_ref_list: SimpleMap<u64, ExtendRef>,
         let coin_to_repay_debt = coin::extract(&mut coin, (amount_to_repay as u64));
         coin::deposit(signer::address_of(creator), coin_to_repay_debt);
         // creator of this contract repay debt on behalf of user, then receive NFT -> transfer to buyer
-        lending_pool::repay<CoinType>(creator, collection_name, amount_to_repay);
+        lending_pool::repay<CoinType>(creator, amount_to_repay);
         
         // withdraw nft from creator and deposit to buyer
         // let (borrow_amount, repaid_amount, total_collateral_amount, health_factor, available_to_borrow) = lending_pool::get_borrower_information(signer::address_of(creator));  

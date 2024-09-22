@@ -54,7 +54,7 @@ module lending_addr::lending_pool {
         liquidation_threshold: u256,
     }
 
-    // store configuration of each market
+    // store configuration of each1 market
     struct Market has key, store, drop {
         total_deposit: u256,
         deposit_apy: u256,
@@ -252,7 +252,7 @@ module lending_addr::lending_pool {
         borrower.available_to_borrow = borrower.available_to_borrow - amount;
     }
 
-    public entry fun repay<CoinType>(sender: &signer, collection_name: String, amount: u256) acquires Market, MarketReserve {
+    public entry fun repay<CoinType>(sender: &signer, amount: u256) acquires Market, MarketReserve {
         let sender_addr = signer::address_of(sender);
         let market = borrow_global_mut<Market>(@lending_addr);
         let borrower_list = &mut market.borrower_list;
@@ -299,6 +299,7 @@ module lending_addr::lending_pool {
             while(i >= 0) {
                 let collateral = vector::borrow(collateral_list, (i as u64));
                 let token_id = collateral.token_id;
+                let collection_name = collateral.collection_name;
                 // transfer NFT to user wallet and get debt NFT form user wallet
                 digital_asset::transfer_token(sender_addr, collection_name, token_id);
                 digital_asset::withdraw_debt_token(sender, collection_name, token_id);
@@ -312,8 +313,9 @@ module lending_addr::lending_pool {
             };
         };
         
-        
     }
+
+
 
     // ===================================================================================
     // ================================= Helper Function =================================
@@ -378,12 +380,12 @@ module lending_addr::lending_pool {
     }
 
     #[view]
-    public fun get_collateral(user_addr: address, collateral_id: u64): (String, u64) acquires Market {
+    public fun get_collateral(user_addr: address, index: u64): (String, u64) acquires Market {
         let market = borrow_global_mut<Market>(@lending_addr);
         let borrower_map = &mut market.borrower_map;
         let borrower = simple_map::borrow_mut<address, Borrower>(borrower_map, &user_addr);
         let collateral_list = &borrower.collateral_list;
-        let collateral = vector::borrow(collateral_list, collateral_id);
+        let collateral = vector::borrow(collateral_list, index);
         (collateral.collection_name, collateral.token_id)
     }
 

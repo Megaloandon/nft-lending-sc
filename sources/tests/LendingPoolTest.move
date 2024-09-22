@@ -236,7 +236,7 @@ module lending_addr::lending_pool_test {
         test_borrow(admin, user1, aptos_framework);
         
         // after repay part of debt
-        lending_pool::repay<FakeAPT>(user1, string::utf8(COLLECTION_NAME_TEST), 2000000);
+        lending_pool::repay<FakeAPT>(user1, 2000000);
         let addr = digital_asset::get_owner_token(string::utf8(COLLECTION_NAME_TEST), 329);
         assert!(addr != user1_addr, ERR_TEST);
         let addr = digital_asset::get_owner_token(string::utf8(COLLECTION_NAME_TEST), 98);
@@ -253,7 +253,7 @@ module lending_addr::lending_pool_test {
         assert!(user1_balance == 3000000, ERR_TEST);
 
         // after repay all debt
-        lending_pool::repay<FakeAPT>(user1, string::utf8(COLLECTION_NAME_TEST), 3000000);
+        lending_pool::repay<FakeAPT>(user1, 3000000);
         let addr = digital_asset::get_owner_token(string::utf8(COLLECTION_NAME_TEST), 329);
         assert!(addr == user1_addr, ERR_TEST);
         let addr = digital_asset::get_owner_token(string::utf8(COLLECTION_NAME_TEST), 98);

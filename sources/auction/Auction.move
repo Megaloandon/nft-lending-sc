@@ -1,144 +1,179 @@
-// module lending_addr::english_auction {
-//     use std::vector;
-//     use std::signer;
-//     use std::simple_map::{Self, SimpleMap};
+module lending_addr::english_auction {
+    use std::vector;
+    use std::signer;
+    use std::string::{Self, String};
+    use aptos_framework::coin::{Self, Coin};
+    use lending_addr::mega_coin::{Self, MockAPT};
+    use std::simple_map::{Self, SimpleMap};
+    use lending_addr::digital_asset;
+    use lending_addr::lending_pool;
+    use aptos_framework::object::{Self, Object, ExtendRef};
 
-//     const WINNER: u64 = 1;
-//     const EINSUFFICIENT_BALANCE: u64 = 2;
+    const WINNER: u64 = 1;
+    const ERR_INSUFFICIENT_BALANCE: u64 = 2;
 
-//     struct BetAddrList has key {
-//         bet_addr_list: SimpleMap<address, u64>,
-//         b_list: vector<address>,
-//         winner: address
-//     }
+    struct MarketReserve<phantom CoinType> has key {
+        reserve: Coin<CoinType>
+    }
+    
+    struct BidRecord has key, store, drop {
+        current_debt: u256,
+        first_bid_addr: address,
+        first_bid_amount: u256,
+        current_bid_addr: address,
+        current_bid_amount: u256,
+        winner_addr: address,
+        winner_amount: u256,
+    }
 
-//     public fun assert_is_owner(addr: address) {
-//         assert!(addr == @my_addrx, 0);
-//     }
+    struct NFTToAuction has key, store, drop {
+        collection_name: String,
+        token_id: u64,
+    }
 
-//     public fun assert_is_initialized(addr: address) {
-//         assert!(exists<BetAddrList>(addr), 1);
-//     }
+    struct AuctionRecord has key {
+        nft_to_auction_list: vector<NFTToAuction>,
+        nft_to_auction_map: SimpleMap<NFTToAuction, BidRecord>,
+    }
 
-//     public fun assert_uninitialized(addr: address) {
-//         assert!(!exists<BetAddrList>(addr), 3);
-//     }
+    fun init_moudule(sender: &signer) {
+        move_to(sender, AuctionRecord {
+            nft_to_auction_list: vector::empty(),
+            nft_to_auction_map: simple_map::create(),
+        });
 
-//     public fun assert_contains_key(map: &SimpleMap<address, u64>, addr: &address) {
-//         assert!(simple_map::contains_key(map, addr), 2);
-//     }
+        move_to<MarketReserve<MockAPT>>(sender, MarketReserve<MockAPT> {
+            reserve: coin::zero<MockAPT>(),
+        });
+    }
 
-//     public fun assert_not_contains_key(map: &SimpleMap<address, u64>, addr: &address) {
-//         assert!(!simple_map::contains_key(map, addr), 4);
-//     }
+    //=====================================================================================
+    //================================ Entry Function =====================================
+    //=====================================================================================
 
-//     // @params: starting price of this auction = debt?
-//     public entry fun initialize_with_bet(acc: &signer, amount:u64) acquires BetAddrList {
-//         let addr = signer::address_of(acc);
-//         let balance = my_addrx::BasicTokens::balance_of(addr);
-//         assert!(balance >= amount, EINSUFFICIENT_BALANCE);
-        
-//         assert_is_owner(addr);
-//         assert_uninitialized(addr);
+    public entry fun add_nft_to_auction(owner_addr: address, collection_name: String, token_id: u64, current_debt: u256) acquires AuctionRecord {
+        let nft_to_auction_map = &mut borrow_global_mut<AuctionRecord>(@lending_addr).nft_to_auction_map;
+        let nft_to_auction = NFTToAuction {
+            collection_name,
+            token_id,
+        };
+        let bid_record = BidRecord {
+            current_debt,
+            first_bid_addr: @0x0,
+            first_bid_amount: 0,
+            current_bid_addr: @0x0,
+            current_bid_amount: 0,
+            winner_addr: @0x0,
+            winner_amount: 0,
+        };
+        simple_map::add(nft_to_auction_map, nft_to_auction, bid_record);
+    }  
 
-//         let b_store = BetAddrList{
-//             bet_addr_list:simple_map::create(),
-//             b_list: vector::empty<address>(),
-//             winner: @0x0,
-//             };
+    public entry fun initialize_with_bid<CoinType>(sender: &signer, collection_name: String, token_id: u64, bid_amount: u256) acquires AuctionRecord, MarketReserve {
+        let sender_addr = signer::address_of(sender);
+        let nft_to_auction_map = &mut borrow_global_mut<AuctionRecord>(@lending_addr).nft_to_auction_map;
+        let nft_to_auction = NFTToAuction {
+            collection_name,
+            token_id,
+        };
+        let bid_record = simple_map::borrow_mut<NFTToAuction, BidRecord>(nft_to_auction_map, &nft_to_auction);
+        assert!(bid_amount >= bid_record.current_debt, ERR_INSUFFICIENT_BALANCE);
 
-//             move_to(acc, b_store);
+        bid_record.first_bid_addr = sender_addr;
+        bid_record.first_bid_amount = bid_amount;
+        bid_record.current_bid_addr = sender_addr;
+        bid_record.current_bid_amount = bid_amount;
 
-//         let b_store = borrow_global_mut<BetAddrList>(addr);
-//         simple_map::add(&mut b_store.bet_addr_list, addr, amount);
-//         vector::push_back(&mut b_store.b_list, addr);
-//         my_addrx::BasicTokens::withdraw(addr, amount);
-//     }
+        let reserve = &mut borrow_global_mut<MarketReserve<CoinType>>(@lending_addr).reserve;
+        let coin = coin::withdraw<CoinType>(sender, (bid_amount as u64));
+        coin::merge(reserve, coin);
+    }
 
-//     public entry fun placeBet(acc: &signer, store_addr: address, amount:u64) acquires BetAddrList {
-//         let b_addr = signer::address_of(acc);
-//         let balance = my_addrx::BasicTokens::balance_of(b_addr);
-//         assert!(balance >= amount, EINSUFFICIENT_BALANCE);
+    public entry fun place_bid<CoinType>(sender: &signer, collection_name: String, token_id: u64, bid_amount: u256) acquires AuctionRecord, MarketReserve {
+        let sender_addr = signer::address_of(sender);
+        let nft_to_auction_map = &mut borrow_global_mut<AuctionRecord>(@lending_addr).nft_to_auction_map;
+        let nft_to_auction = NFTToAuction {
+            collection_name,
+            token_id,
+        };
+        let bid_record = simple_map::borrow_mut<NFTToAuction, BidRecord>(nft_to_auction_map, &nft_to_auction);
+        let require_bid_amount = bid_record.current_bid_amount + bid_record.current_debt * 101 / 100; // + 1% debt      
+        assert!(bid_amount >= require_bid_amount, ERR_INSUFFICIENT_BALANCE);
 
-//         let b_store = borrow_global_mut<BetAddrList>(store_addr);
-//         assert!(b_store.winner == @0x0, 5);
-        
-//             let balance = my_addrx::BasicTokens::balance_of(b_addr);
-//             assert!(balance >= amount, EINSUFFICIENT_BALANCE);
+        // refund
+        let reserve = &mut borrow_global_mut<MarketReserve<CoinType>>(@lending_addr).reserve;
+        let coin = coin::extract(reserve, (bid_record.current_bid_amount as u64));
+        coin::deposit(bid_record.current_bid_addr, coin);
 
-//             simple_map::add(&mut b_store.bet_addr_list, b_addr, amount);
-//             vector::push_back(&mut b_store.b_list, b_addr);
-//             my_addrx::BasicTokens::withdraw(b_addr, amount);
-//     }
+        bid_record.current_bid_addr = sender_addr;
+        bid_record.current_bid_amount = bid_amount;
 
-//     public entry fun declare_winner(acc: &signer) acquires BetAddrList {
-//         let addr = signer::address_of(acc);
-//         assert_is_owner(addr);
-//         assert_is_initialized(addr);
+        // get new bid
+        let coin = coin::withdraw<CoinType>(sender, (bid_amount as u64));
+        coin::merge(reserve, coin);
+    }
 
-//         let b_store = borrow_global_mut<BetAddrList>(addr);
-//         assert!(b_store.winner == @0x0, 5);
+    public entry fun declare_winner<CoinType>(sender: &signer, collection_name: String, token_id: u64) acquires AuctionRecord, MarketReserve {
+        let sender_addr = signer::address_of(sender);
+        let nft_to_auction_map = &mut borrow_global_mut<AuctionRecord>(@lending_addr).nft_to_auction_map;
+        let nft_to_auction = NFTToAuction {
+            collection_name,
+            token_id,
+        };
+        let bid_record = simple_map::borrow_mut<NFTToAuction, BidRecord>(nft_to_auction_map, &nft_to_auction);
+        bid_record.winner_addr = bid_record.current_bid_addr;
+        bid_record.winner_amount = bid_record.current_bid_amount;
 
-//         let total_betters = vector::length(&b_store.b_list);
+        // repay debt and get nft collateral, then transfer to winer
+        let creator_constructor_ref = &object::create_object(@lending_addr);
+        let creator_extend_ref = object::generate_extend_ref(creator_constructor_ref);
+        let creator = &object::generate_signer_for_extending(&creator_extend_ref);
+        let reserve = &mut borrow_global_mut<MarketReserve<CoinType>>(@lending_addr).reserve;
+        let coin = coin::extract(reserve, (bid_record.current_debt as u64));
+        coin::deposit(signer::address_of(creator), coin);
+        lending_pool::repay<CoinType>(creator, bid_record.current_debt);
+        digital_asset::transfer_token(bid_record.winner_addr, collection_name, token_id);
 
-//         let i = 0;
-//         let winner: address = @0x0;
-//         let highest_bet: u64 = 0;
+        // deposit remaining amount to owner of address
+        let remaining_amount = bid_record.current_bid_amount - bid_record.current_debt;
+        let coin = coin::extract(reserve, (remaining_amount as u64));
+        coin::deposit(sender_addr, coin);
+    }   
+    
+    //====================================================================================
+    //================================== View Fucntion ===================================
+    //====================================================================================
 
-//         while (i < total_betters) {
-//             let better = *vector::borrow(&b_store.b_list, (i as u64));
-//             let bet_amount = simple_map::borrow(&b_store.bet_addr_list, &better);
+    #[view]
+    public fun get_numbers_nft_to_auction(): u64 acquires AuctionRecord {
+        let nft_to_auction_list = &borrow_global<AuctionRecord>(@lending_addr).nft_to_auction_list;
+        let number_nfts = vector::length(nft_to_auction_list);
+        number_nfts
+    } 
 
-//             if(highest_bet < *bet_amount) {
-//                 highest_bet = *bet_amount;
-//                 winner = better;
-//             };
-//             i = i + 1;
-//         };
+    #[view]
+    public fun get_nft_to_auction(index: u64): (String, u64) acquires AuctionRecord {
+        let nft_to_auction_list = &borrow_global<AuctionRecord>(@lending_addr).nft_to_auction_list;
+        let nft = vector::borrow(nft_to_auction_list, index);
+        (nft.collection_name, nft.token_id)
+    } 
 
-//         b_store.winner = winner;
-//     }
-
-//     public fun claim_your_amount(acc_own: &signer, store_addr: address) acquires BetAddrList{
-//         let addr = signer::address_of(acc_own);
-        
-//         let b_store = borrow_global_mut<BetAddrList>(store_addr);
-//         let bet_amount = simple_map::borrow_mut(&mut b_store.bet_addr_list, &addr);
-        
-        
-//         assert!(b_store.winner != addr, 5);
-//         assert!(*bet_amount != 0, 6);
-
-//         my_addrx::BasicTokens::withdraw(addr, *bet_amount);
-//         *bet_amount = 0;
-//     }
-
-
-//     #[test(admin = @my_addrx,alice=@0x11,bob=@0x2)]
-//     public entry fun test_betting(admin: signer,alice : signer, bob : signer)  acquires BetAddrList{
-//         let better = account::create_account_for_test(signer::address_of(&admin));
-//         let better2 = account::create_account_for_test(signer::address_of(&alice));
-//         let better3 = account::create_account_for_test(signer::address_of(&bob));
-
-//         // Publish balance for Alice and Bob
-//         my_addrx::BasicTokens::publish_balance(&admin);
-//         my_addrx::BasicTokens::publish_balance(&alice);
-//         my_addrx::BasicTokens::publish_balance(&bob);
-
-//         // Mint some tokens to Alice
-//         my_addrx::BasicTokens::mint<my_addrx::BasicTokens::Coin>(signer::address_of(&admin), 1000);
-//         my_addrx::BasicTokens::mint<my_addrx::BasicTokens::Coin>(signer::address_of(&alice), 1000);
-//         my_addrx::BasicTokens::mint<my_addrx::BasicTokens::Coin>(signer::address_of(&bob), 1000);
-
-//         initialize_with_bet(&better,100);
-//         placeBet(&better2, signer::address_of(&admin),200);
-//         placeBet(&better3, signer::address_of(&admin),300);
-
-//         let b_store = &borrow_global<BetAddrList>(signer::address_of(&admin)).bet_addr_list;
-//         assert_contains_key(b_store, &signer::address_of(&better));
-//         assert_contains_key(b_store, &signer::address_of(&better2));
-//         assert_contains_key(b_store, &signer::address_of(&better3));
-
-//         declare_winner(&admin);
-//     }
-// }
+    #[view]
+    public fun get_bid_information(collection_name: String, token_id: u64): (u256, address, u256, address, u256, address, u256) acquires AuctionRecord {
+        let nft_to_auction_map = &borrow_global<AuctionRecord>(@lending_addr).nft_to_auction_map;
+        let nft_to_auction = NFTToAuction {
+            collection_name,
+            token_id,
+        };
+        let bid_record = simple_map::borrow<NFTToAuction, BidRecord>(nft_to_auction_map, &nft_to_auction);
+        (
+            bid_record.current_debt,
+            bid_record.first_bid_addr,
+            bid_record.first_bid_amount,
+            bid_record.current_bid_addr,
+            bid_record.current_bid_amount,
+            bid_record.winner_addr,
+            bid_record.winner_amount,
+        )
+    }
+}

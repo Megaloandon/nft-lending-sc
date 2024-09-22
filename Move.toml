@@ -4,7 +4,7 @@ version = "1.0.0"
 authors = []
 
 [addresses]
-lending_addr='_'
+lending_addr='30e7e6fe6dcb140a504d463ef1c05e561ce45cc3369ee166fffe940d1f8c823c'
 [dev-addresses]
 
 [dependencies]
