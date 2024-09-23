@@ -4,11 +4,13 @@ version = "1.0.0"
 authors = []
 
 [addresses]
-lending_addr='30e7e6fe6dcb140a504d463ef1c05e561ce45cc3369ee166fffe940d1f8c823c'
+lending_addr='_'
+
 [dev-addresses]
 
 [dependencies]
 AptosFramework = { git = "https://github.com/aptos-labs/aptos-core.git", rev = "mainnet", subdir = "aptos-move/framework/aptos-framework" }
 AptosTokenObjects = { git = "https://github.com/aptos-labs/aptos-core.git", rev = "mainnet", subdir = "aptos-move/framework/aptos-token-objects" }
+MegaloandonOracle = {local = "../Aptos-NFT-Lending-Oracle"}
 
 [dev-dependencies]

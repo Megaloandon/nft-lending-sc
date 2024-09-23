@@ -10,8 +10,9 @@ module lending_addr::lending_pool {
     use aptos_framework::object;
     use lending_addr::mega_coin::{Self, MockAPT, MegaAPT};
     use lending_addr::digital_asset;
-    use lending_addr::mock_oracle;
+    use lending_addr::nft_oracle;
     use lending_addr::mock_flash_loan;
+    use oracle_addr::oracle;
 
     const YEAR_TO_SECOND: u256 = 31536000;
     const BASE: u256 = 1000000;
@@ -78,6 +79,7 @@ module lending_addr::lending_pool {
         });
         mega_coin::initialize(sender);
         digital_asset::initialize(sender);
+        oracle::initialize(sender);
         move_to<MarketReserve<MockAPT>>(sender, MarketReserve<MockAPT> {
             reserve: coin::zero<MockAPT>(),
         });
@@ -166,7 +168,7 @@ module lending_addr::lending_pool {
         let borrower_map = &mut market.borrower_map;
         let borrower_numbers = vector::length(borrower_list);
         let is_borrower_exist = vector::contains(borrower_list, &sender_addr);
-        let nft = get_nft_configuration(token_id);
+        let nft = get_nft_configuration(collection_name, token_id);
         let new_available_to_borrow = nft.price * nft.ltv / BASE;
         // get NFT from user wallet and transfer debt NFT to user wallet
         digital_asset::withdraw_token(sender, collection_name, token_id);
@@ -321,8 +323,8 @@ module lending_addr::lending_pool {
     // ================================= Helper Function =================================
     // ===================================================================================
 
-    public fun get_nft_configuration(token_id: u64): NFT {
-        let price = mock_oracle::get_full_payment_price(token_id);
+    public fun get_nft_configuration(collection_name: String, token_id: u64): NFT {
+        let price = nft_oracle::get_full_payment_price(collection_name, token_id);
         let nft = NFT {
             price: price,
             ltv: 600000,
@@ -358,6 +360,9 @@ module lending_addr::lending_pool {
     public fun get_lender_information(user_addr: address): (u256, u256) acquires Market {
         let market = borrow_global_mut<Market>(@lending_addr);
         let lender_map = &mut market.lender_map;
+        if(simple_map::contains_key<address, Lender>(lender_map, &user_addr) == false) {
+            return (0, 0);
+        };
         let lender = simple_map::borrow_mut<address, Lender>(lender_map, &user_addr);
         // update_lending_accumulated(lender, market.deposit_apy);
         (lender.deposit_amount, lender.deposit_amount)
@@ -373,6 +378,9 @@ module lending_addr::lending_pool {
     public fun get_collateral_numbers(user_addr: address): u64 acquires Market {
         let market = borrow_global_mut<Market>(@lending_addr);
         let borrower_map = &mut market.borrower_map;
+        if(simple_map::contains_key<address, Borrower>(borrower_map, &user_addr) == false) {
+            return 0;
+        };
         let borrower = simple_map::borrow_mut<address, Borrower>(borrower_map, &user_addr);
         let collateral_list = &borrower.collateral_list;
         let collateral_numbers = vector::length(collateral_list);
@@ -383,6 +391,10 @@ module lending_addr::lending_pool {
     public fun get_collateral(user_addr: address, index: u64): (String, u64) acquires Market {
         let market = borrow_global_mut<Market>(@lending_addr);
         let borrower_map = &mut market.borrower_map;
+        if(simple_map::contains_key<address, Borrower>(borrower_map, &user_addr) == false) {
+            let str = string::utf8(b"none");
+            return (str, 0);
+        };
         let borrower = simple_map::borrow_mut<address, Borrower>(borrower_map, &user_addr);
         let collateral_list = &borrower.collateral_list;
         let collateral = vector::borrow(collateral_list, index);
@@ -393,6 +405,9 @@ module lending_addr::lending_pool {
     public fun get_borrower_information(user_addr: address): (u256, u256, u256, u256, u256) acquires Market {
         let market = borrow_global_mut<Market>(@lending_addr);
         let borrower_map = &mut market.borrower_map;
+        if(simple_map::contains_key<address, Borrower>(borrower_map, &user_addr) == false) {
+            return (0, 0, 0, 0, 0);
+        };
         let borrower = simple_map::borrow_mut<address, Borrower>(borrower_map, &user_addr);
         (borrower.borrow_amount, borrower.repaid_amount, borrower.total_collateral_amount, borrower.health_factor, borrower.available_to_borrow)
     }
