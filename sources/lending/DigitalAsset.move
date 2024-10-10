@@ -108,7 +108,6 @@ module lending_addr::digital_asset {
             true,
             0, 100,
         );
-
     }
 
     public entry fun mint_token(

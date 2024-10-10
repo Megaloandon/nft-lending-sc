@@ -152,9 +152,11 @@ module lending_addr::exchange {
         sell_instantly_nft<CoinType>(creator, collection_name, token_id);
         // deposit NFT to owner who is represented for the Loan
         digital_asset::withdraw_token(creator, collection_name, token_id);
-        digital_asset::transfer_token(signer::address_of(sender), collection_name, token_id);
-        // list to exchange and instantly received 60% to repay flash loan
-        list_instantly_nft<CoinType>(sender, collection_name, token_id);
+        // sender will be owner of NFT 
+        digital_asset::transfer_token(signer::address_of(sender), collection_name, token_id); 
+        // deposit nft to lending protocol as collateral and received 60% to repay flash loan
+        lending_pool::deposit_collateral(sender, collection_name, token_id);
+        lending_pool::borrow<CoinType>(sender, remaining_payment);
         let coin = coin::withdraw<CoinType>(sender, (remaining_payment as u64));
         coin::deposit<CoinType>(signer::address_of(creator), coin);
         mock_flash_loan::repay_flash_loan<CoinType>(creator);

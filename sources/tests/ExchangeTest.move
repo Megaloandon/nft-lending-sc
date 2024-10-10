@@ -262,6 +262,12 @@ module lending_addr::exchange_test {
         assert!(user3_balance == (1000000000 - 3499000 * 40 / 100), ERR_TEST);
         let owner_token = digital_asset::get_owner_token(string::utf8(COLLECTION_NAME_TEST), 329);
         assert!(owner_token != user3_addr, ERR_TEST);
+
+        let collateral_numbers = lending_pool::get_collateral_numbers(user3_addr);
+        assert!(collateral_numbers == 1, ERR_TEST);
+        let (collection_name, token_id) = lending_pool::get_collateral(user3_addr, 0);
+        assert!(token_id == 329, ERR_TEST)
     }
+
     
 }
