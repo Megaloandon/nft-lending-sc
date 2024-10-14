@@ -1,6 +1,6 @@
 # Introduction
 
-Aptos is a next-generation Layer 1 blockchain designed to enhance the scalability, security, and user experience of decentralized applications. In our Megaloandon protocol, Aptos plays a critical role by providing a fast and secure environment for transactions and smart contracts. For NFT Lending, Aptos ensures real-time liquidation and collateral management, allowing users to leverage their NFTs as collateral to borrow assets and trading of NFTs with lower gas fees and faster finality compared to traditional blockchains. By using Aptos' advanced architecture, the platform ensures that transactions remain decentralized, secure, and efficient, empowering users to maximize the liquidity of their NFT assets with minimal risk
+`Aptos` is a **next-generation Layer 1** blockchain designed to enhance the scalability, security, and user experience of decentralized applications. In our `Megaloandon` protocol, `Aptos` plays a critical role by providing a **fast** and **secure** environment for transactions and smart contracts. For NFT Lending, `Aptos` ensures real-time liquidation and collateral management, allowing users to leverage their NFTs as collateral to borrow assets and trading of NFTs with **lower gas fees** and **faster finality** compared to traditional blockchains. By using `Aptos'` advanced architecture, the platform ensures that transactions remain decentralized, secure, and efficient, empowering users to **maximize** the liquidity of their NFT assets with **minimal** risk
 
 # Core Contract
 
