@@ -15,12 +15,12 @@
 # Testnet Deployment
 **Lending protocols**
 ```bash
-0xe56bfd96c130be460bc962aca4c27e8e57e889a358ae713d86439ca531eabdb5
+0x61a1c85415dcf2d45502488cb52309f1834a0a44d4b97b617ca31ebc9b706d94
 ```
 
 **Megaloandon Oracle**
 ```bash
-0xd37904ac357ea266e2c30cae3b6559f9d1222909f9b5781b0eaf1e1acd952e96
+0x9ecc4f0af6934c425dfd8c83f34cc8895bc1b82bd1b3adccfdb416ecff697675
 ```
 
 # Compile
