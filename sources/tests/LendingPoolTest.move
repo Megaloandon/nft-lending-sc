@@ -209,6 +209,43 @@ module lending_addr::lending_pool_test {
     }
 
     #[test(admin=@lending_addr, user1=@0x1001, aptos_framework = @aptos_framework)]
+    public fun test_deposit_multi_collateral(admin: &signer, user1: &signer, aptos_framework: &signer) acquires FreeCoins {
+        let admin_addr = signer::address_of(admin);
+        let user1_addr = signer::address_of(user1);
+        set_up_test_for_time(aptos_framework);
+        
+        // admin deposits 1.000.000 * 10^6 
+        // user deposits 1.000 * 10^6
+        lending_pool::init_module_for_tests(admin);
+        test_init(admin, user1);
+
+        // create nft for user1 
+        create_nft(user1_addr, 329);
+        create_nft(user1_addr, 98);
+        create_nft(user1_addr, 174);
+
+        let collateral_list = vector::empty();
+        let first_collateral = string::utf8(b"Collection Test#329");
+        vector::push_back(&mut collateral_list, first_collateral);
+        let second_collateral = string::utf8(b"Collection Test#98");
+        vector::push_back(&mut collateral_list, second_collateral);
+        let third_collateral = string::utf8(b"Collection Test#174");
+        vector::push_back(&mut collateral_list, third_collateral);
+
+        // deposit nft to lending pool
+        lending_pool::deposit_multi_collateral(user1, collateral_list);
+        // let current_owner = digital_asset::get_owner_token(329);
+        // assert!(current_owner == @lending_addr, ERR_TEST);
+
+        let (borrow_amount, repaid_amount, total_collateral_amount, health_factor, available_to_borrow) = lending_pool::get_borrower_information(user1_addr);
+        assert!(total_collateral_amount == 3 * 3499000, ERR_TEST);
+
+        // digital_asset::transfer_token(329, user1_addr);
+        // let current_owner = digital_asset::get_owner_token(329);
+        // assert!(current_owner == user1_addr, ERR_TEST);
+    }
+
+    #[test(admin=@lending_addr, user1=@0x1001, aptos_framework = @aptos_framework)]
     public fun test_borrow(admin: &signer, user1: &signer, aptos_framework: &signer) acquires FreeCoins {
         let admin_addr = signer::address_of(admin);
         let user1_addr = signer::address_of(user1);

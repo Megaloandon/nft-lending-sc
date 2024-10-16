@@ -59,6 +59,14 @@ module lending_addr::mega_coin {
         coin::deposit<CoinType>(receiver, coin);
     }
 
+    #[view]
+    public fun get_balance<CoinType>(sender_addr: address): u64 {
+        if(coin::is_account_registered<MockAPT>(sender_addr) == false) {
+            return 0
+        };
+        coin::balance<CoinType>(sender_addr)
+    }
+
     public entry fun register(sender: &signer) {
         if(coin::is_account_registered<MockAPT>(signer::address_of(sender)) == false) {
             coin::register<MockAPT>(sender);

@@ -3,6 +3,8 @@ module lending_addr::lending_pool {
     use std::vector;
     use std::string::{Self, String};  
     use std::signer;
+    use aptos_std::from_bcs::to_u64;
+    use aptos_std::from_bcs;
     use std::simple_map::{Self, SimpleMap};
     use aptos_framework::timestamp;
     use aptos_framework::account;
@@ -161,7 +163,18 @@ module lending_addr::lending_pool {
         lender.lasted_update_time = timestamp::now_seconds();
     }
 
-    public entry fun deposit_collateral(sender: &signer, collection_name: String, token_id: u64) acquires Market {
+    public entry fun deposit_multi_collateral(sender: &signer, collateral_list: vector<String>) acquires Market {
+        let collateral_numbers = vector::length(&collateral_list);
+        let i = 0;
+        while(i < collateral_numbers) {
+            let collateral = vector::borrow(&collateral_list, (i as u64));
+            let (collection_name, token_id) = extract_collection_name_token_id(*collateral);
+            deposit_collateral(sender, collection_name, token_id);
+            i = i + 1;
+        };
+    }
+
+    public fun deposit_collateral(sender: &signer, collection_name: String, token_id: u64) acquires Market {
         let sender_addr = signer::address_of(sender);
         let market = borrow_global_mut<Market>(@lending_addr);
         let borrower_list = &mut market.borrower_list;
@@ -346,6 +359,47 @@ module lending_addr::lending_pool {
         lender.deposit_amount = lender.deposit_amount + amount_accumulated;
         lender.lasted_update_time = now;
     }
+
+    fun vector_to_u64(v: vector<u8>): u64 {
+        let result: u64 = 0;
+        let length = vector::length(&v);
+        let i = 0;
+
+        while (i < length) {
+            let byte = *vector::borrow(&v, i);
+            let digit = (byte - 48) as u64;
+            result = result * 10 + digit;
+
+            i = i + 1;
+        };
+
+        result
+    }
+
+    fun extract_collection_name_token_id(collateral: String): (String, u64) {
+        let collateral_bytes = string::bytes(&collateral);
+        let length = vector::length(collateral_bytes);
+        let i = 0;
+        let is_number = false;
+        let name_part = vector::empty<u8>();
+        let number_part = vector::empty<u8>();
+
+        while (i < length) {
+            let char = vector::borrow(collateral_bytes, i);
+            if (*char == 35) { 
+                is_number = true;
+            } else if (is_number) {
+                vector::push_back(&mut number_part, *char);
+            } else {
+                vector::push_back(&mut name_part, *char);
+            };
+            i = i + 1;
+        };
+        let number_u64 = vector_to_u64(number_part);
+
+        (string::utf8(name_part), number_u64)
+    }
+
 
     // =================================================================================
     // ================================= View Function =================================
