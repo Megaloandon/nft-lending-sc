@@ -15,7 +15,7 @@
 # Testnet Deployment
 **Lending protocols**
 ```bash
-0x61a1c85415dcf2d45502488cb52309f1834a0a44d4b97b617ca31ebc9b706d94
+0x498afaeb1ae2ff1d077516cb588ad9adaff60c04b577904cfd0d3cfe58c98eef
 ```
 
 **Megaloandon Oracle**
